@@ -68,6 +68,22 @@ google docs in emacs -*- mode: org -*-
 
 ** User Grouping
 
+   TODO: need method of starting new file, or using existing file
+   TODO: need method of merging two users' existing servers from two different
+   sessions into one session, if they're working on the same file.
+
+   User 0 starts server, which maintains:
+   1. a queue of waiting changes, where "change" = user id, and intent to diff
+   2. canon version of file
+   3. list of clients and connection info
+   User 0 also starts client, which maintains:
+   1. "canon" file which is a mirror from the server.
+   2. "tmp" file, produced after authenticating with server; contains diff of
+      current buffer (fast-forwarded with server edits) with canon
+      1. current version of file written to tmp, all diffs applied to both
+         canon and tmp, then diff performed between tmp and canon
+   3. server connection info
+
 ** Changelogging and Distribution
 
    If user sees changes in their buffer and a few seconds have passed since the
