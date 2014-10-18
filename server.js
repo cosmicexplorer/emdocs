@@ -20,27 +20,33 @@ function addToQueue(counter, callback){
 // single worker because want to only process single user at a time
 var userDiffQueue = utilities.async.queue(addToQueue,1);
 
+var canonFileContents;
 utilities.fs.exists(activeFileName,function(exists){
     if (!exists){
         // make it exist, but blank
         utilities.fs.writeFileSync(activeFileName, "");
     }
-    utilities.io.on('connection',function(socket){
-        console.log('user ' + serverUserList.length + ' connected :)');
-        // send user id and filename
-        socket.emit('connection_info', {
-            userId: serverUserList.length,
-            activeFileName: activeFileName
-        });
-        // send file
-        socket.emit('file_text',
-                    utilities.fs.readFileSync(activeFileName).toString());
-        socket.on('disconnect', function(){
-            console.log('a user disconnected :(');
-        });
-    });
+    canonFileContents = utilities.fs.readFileSync(activeFileName).toString();
     utilities.http.listen(utilities.HTTP_PORT, function(){
         console.log("listening on " + utilities.os.hostname() + ":" +
                     utilities.HTTP_PORT);
+    });
+});
+
+
+// TODO: create list of users that can be added to and removed from atomictally
+// at all times. hash table? atomic get/set operations library? idk. let's think
+// about it on monday.
+utilities.io.on('connection',function(socket){
+    var userId = serverUserList.length;
+    console.log('user ' + userId + ' connected :)');
+    // send user id, filename, and file contents
+    socket.emit('connection_info', {
+        userId: userId,
+        activeFileName: activeFileName,
+        fileContents: canonFileContents
+    });
+    socket.on('disconnect', function(){
+        console.log('user ' + userId + ' disconnected :(');
     });
 });

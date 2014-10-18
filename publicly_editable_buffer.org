@@ -68,7 +68,7 @@ google docs in emacs -*- mode: org -*-
 
 ** User Grouping
 
-   TODO: need method of starting new file xor using existing file
+   TODO: need method of starting new file or using existing file
    TODO: need method of merging two users' existing servers from two different
    sessions into one session, if they're working on the same file.
 

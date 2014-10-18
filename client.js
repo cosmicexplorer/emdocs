@@ -9,14 +9,15 @@ var socket = utilities.client_io(serverUri);
 
 var userId;
 var activeFileName;
+var fileContents;
 socket.on('connect', function(){
-    // get user id and filename
+    // get user id, filename, and file contents
     socket.on('connection_info', function(info){
         userId = info.userId;
         activeFileName = info.activeFileName + "_CLIENT_COPY";
-        socket.on('file_text', function(fileText){
-            utilities.fs.writeFileSync(activeFileName, fileText);
-        });
+        fileContents = info.fileContents;
+        console.log(fileContents);
+        utilities.fs.writeFileSync(activeFileName, fileContents);
     });
 });
 
