@@ -6,21 +6,22 @@ var serverIpAddr = process.argv[2];
 var serverUri = 'http://' + serverIpAddr + ':' + utilities.HTTP_PORT;
 
 var socket = utilities.client_io(serverUri);
-
 var userId;
 var activeFileName;
 var fileContents;
-socket.on('connect', function(){
-    // get user id, filename, and file contents
-    socket.on('connection_info', function(info){
-        userId = info.userId;
-        activeFileName = info.activeFileName + "_CLIENT_COPY";
-        fileContents = info.fileContents;
-        console.log(fileContents);
-        utilities.fs.writeFileSync(activeFileName, fileContents);
-    });
+
+socket.on('connect', function() {
+  // get user id, filename, and file contents
+  socket.on('connection_info', function(info) {
+    userId = info.userId;
+    activeFileName = info.activeFileName + "_CLIENT_COPY";
+    fileContents = info.fileContents;
+    console.log(fileContents);
+    utilities.fs.writeFileSync(activeFileName, fileContents);
+  });
 });
 
+//
 // userIdAndFileLock.writeLock(function(release){
 //     utilities.request
 //         .get(serverUri)
@@ -68,4 +69,4 @@ socket.on('connect', function(){
 //                 }
 //             });
 //     release();
-// });
+// };

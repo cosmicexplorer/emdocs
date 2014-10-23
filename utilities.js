@@ -11,16 +11,15 @@ var rwlock = require('rwlock'); // for mutexes
 const HTTP_PORT = 8080;
 const HTTP_RESPONSE_OK = 200;
 
-
 module.exports = {
-    app: app,
-    async: async,
-    client_io: client_io,
-    fs: fs,
-    http: http,
-    io: io,
-    os: os,
-    rwlock: rwlock,
-    HTTP_PORT: HTTP_PORT,
-    HTTP_RESPONSE_OK: HTTP_RESPONSE_OK
+  app : app,
+  async : async,
+  client_io : client_io,
+  fs : fs,
+  http : http,
+  io : io,
+  os : os,
+  rwlock : rwlock,
+  HTTP_PORT : HTTP_PORT,
+  HTTP_RESPONSE_OK : HTTP_RESPONSE_OK
 }

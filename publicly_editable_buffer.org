@@ -91,3 +91,6 @@ google docs in emacs -*- mode: org -*-
    changes again from the server.
 
    Further thoughts in distributed_control_solution.jpg
+
+   Implementation of diffing algorithm in
+   https://code.google.com/p/google-diff-match-patch/
