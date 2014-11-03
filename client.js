@@ -31,8 +31,14 @@ function initSocket(socket) {
     socket.on('connection_info', function(info) {
       activeFileName = info.activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX;
       fileContents = info.fileContents;
-      console.log(fileContents.toString());
-      utilities.fs.writeFileSync(activeFileName, fileContents);
+      utilities.fs.writeFile(activeFileName, fileContents);
+    });
+    socket.on('file_patch', function(patch) {
+      utilities.fs.readFile(activeFileName, function(error,
+        fileContents) {
+        utilities.fs.writeFile(activeFileName, utilities.diff_match_patch
+          .patch_apply(patch, fileContents)[0]);
+      });
     });
   });
   return socket;

@@ -17,6 +17,7 @@ utilities.fs.readFile(activeFileName, function(error, fileContents) {
     console.log(error);
   }
   if (fileExists) {
+    openFileEmacs(activeFileName);
     utilities.http.listen(utilities.SERVER_HTTP_PORT, function() {
       console.log("listening on " + utilities.os.hostname() + ":" +
         utilities.SERVER_HTTP_PORT);
@@ -41,11 +42,27 @@ utilities.fs.readFile(activeFileName, function(error, fileContents) {
   }
 });
 
-// function broadcastDiff(socket) {
+
+function openFileEmacs(filename) {
+  emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
+  emacsOpenFile.stdout.on('data', function(data) {
+    console.log("emacs stdout: " + data);
+  });
+  emacsOpenFile.stderr.on('data', function(data) {
+    console.log("emacs stderr: " + data);
+  });
+  emacsOpenFile.on('exit', function(return_code, signal) {
+    if (return_code != 0) {
+      console.log("error: file could not be opened.");
+    } else {
+      console.log(":DDDDDDDDDDDDDDDDDD");
+    }
+  });
+}
+
+
 function broadcastDiff() {
-  // on readfile stuff
-  // io.emit('broadcastDiff', )
-  evalArg = "(ex-stuff \"" + activeFileName + "\")";
+  evalArg = "(send-buffer-to-tmp \"" + activeFileName + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsWriteFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
@@ -57,7 +74,21 @@ function broadcastDiff() {
     if (return_code != 0) {
       console.log("error: file could not be saved.");
     } else {
-      console.log("let's do stuff!");
+      console.log(":DDDDDDDDDDDDDDDDDD");
+      utilities.fs.readFile(activeFileName, function(error, fileContents) {
+        // OPTIMIZATION: fix the asynchronicity of this nesting
+        utilities.fs.readFile(activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+          function(tmpError, tmpFileContents) {
+            utilities.io.emit('file_patch', utilities.diff_match_patch
+              .patch_make(
+                "" + fileContents, "" + tmpFileContents));
+          });
+      });
     }
   });
+}
+
+
+function broadcastFile() {
+
 }

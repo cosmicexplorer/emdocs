@@ -11,7 +11,8 @@ var diff_match_patch = require('./diff_match_patch');
 const SERVER_HTTP_PORT = 8080;
 const CLIENT_HTTP_PORT = 3000;
 const HTTP_RESPONSE_OK = 200;
-const DORMANT_SYNC_TIME = 5000; // in milliseconds
+const DORMANT_SYNC_TIME = 250; // in milliseconds
+// const DORMANT_SYNC_TIME = 5000; // use this for release
 const TMP_DIFF_FILE_SUFFIX = ".tmp";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY"
 
@@ -25,6 +26,7 @@ module.exports = {
   io: io,
   os: os,
   spawn: spawn,
+  diff_match_patch: diff_match_patch,
   SERVER_HTTP_PORT: SERVER_HTTP_PORT,
   CLIENT_HTTP_PORT: CLIENT_HTTP_PORT,
   HTTP_RESPONSE_OK: HTTP_RESPONSE_OK,
