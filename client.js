@@ -1,45 +1,31 @@
-var utilities = require('./utilities.js');
+var utilities = require('./utilities');
+var p2p = require('./p2p_socket_io');
 
-// argv[2] (required): the connection address of the server mediating the collab
+// argv[2] (required): the ipv4 address of the server
 
-var serverIpAddr = process.argv[2];
-var selfServerUri = 'http://127.0.0.1:' + utilities.SERVER_HTTP_PORT;
-var serverUri = 'http://' + serverIpAddr + ':' + utilities.SERVER_HTTP_PORT;
+var otherServerUri = "http://" + process.argv[2] + ':' +
+  utilities.SERVER_HTTP_PORT;
+var p = new p2p.p2p_client(otherServerUri, utilities.SERVER_HTTP_PORT);
 
-var activeFileName;
-var fileContents;
-
-var sockets = [];
-
-utilities.http.listen(utilities.CLIENT_HTTP_PORT, function() {
-  console.log("listening on " + utilities.os.hostname() + ":" +
-    utilities.CLIENT_HTTP_PORT);
-});
-
-addSocket(utilities.client_io(selfServerUri), sockets);
-// addSocket(utilities.client_io(serverUri), sockets);
-
-
-function addSocket(socket, socketArray) { // initializes socket too
-  return initSocket(socketArray[socketArray.push(socket) - 1]);
-}
-
-
-function initSocket(socket) {
-  socket.on('connect', function() {
-    // get user id, filename, and file contents
-    socket.on('connection_info', function(info) {
-      activeFileName = info.activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX;
-      fileContents = info.fileContents;
-      utilities.fs.writeFile(activeFileName, fileContents);
-    });
-    socket.on('file_patch', function(patch) {
-      utilities.fs.readFile(activeFileName, function(error,
-        fileContents) {
-        utilities.fs.writeFile(activeFileName, utilities.diff_match_patch
-          .patch_apply(patch, fileContents)[0]);
-      });
-    });
+var fileContentsClient;
+var activeFileNameClient;
+p.start(function() {}, function(socket) {
+  // get user id, filename, and file contents; write to file
+  socket.on('connection_info', function(info) {
+    activeFileNameClient = info.activeFileName +
+      utilities.CLIENT_COPY_FILE_SUFFIX;
+    fileContentsClient = info.fileContents;
+    utilities.fs.writeFile(activeFileName, fileContentsClient);
   });
-  return socket;
-}
+  socket.on('file_patch', function(patch) {
+    utilities.fs.readFile(activeFileName,
+      function(error, fileContentsClient) {
+        utilities.fs.writeFile(activeFileName,
+          utilities.diff_match_patch.patch_apply(patch,
+            fileContentsClient)[0]);
+      });
+  });
+  socket.on('file_in_full', function(fileContents) {
+    utilities.fs.writeFile(activeFileName, fileContentsClient);
+  });
+});

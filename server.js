@@ -1,48 +1,75 @@
-var utilities = require('./utilities.js');
+var utilities = require('./utilities');
+var p2p = require('./p2p_socket_io');
 
 // argv[2] (required): the name of the active file
+// argv[3] (required): the ipv4 address of the server to contact first
 
 var activeFileName = process.argv[2];
 
-var fileContents;
+var fileContentsServer;
 var fileExists = true;
 
-utilities.fs.readFile(activeFileName, function(error, fileContents) {
+var otherServerUri = "http://" + process.argv[3] + ':' +
+  utilities.SERVER_HTTP_PORT;
+var p = new p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
+
+var fileContentsClient;
+var activeFileNameClient;
+utilities.fs.readFile(activeFileName, function(error, fileContentsServer) {
   if (error && error.code == 'ENOENT' && error.errno == 34) {
     // if file not found
     utilities.fs.writeFileSync(activeFileName, "");
-    fileContents = "";
+    fileContentsServer = "";
   } else if (error) {
     fileExists = false;
     console.log(error);
   }
   if (fileExists) {
+
     openFileEmacs(activeFileName);
-    utilities.http.listen(utilities.SERVER_HTTP_PORT, function() {
-      console.log("listening on " + utilities.os.hostname() + ":" +
-        utilities.SERVER_HTTP_PORT);
-    });
-    utilities.io.on('connection', function(socket) {
-      console.log('user ' + socket.id + ' connected :)');
-      socket.emit('connection_info', {
-        activeFileName: activeFileName,
-        fileContents: fileContents
+
+    p.start(
+      // client init function
+      function() {},
+      // client socket function
+      function(socket) {
+        // get user id, filename, and file contents; write to file
+        socket.on('connection_info', function(info) {
+          activeFileNameClient = info.activeFileName +
+            utilities.CLIENT_COPY_FILE_SUFFIX;
+          fileContentsClient = info.fileContents;
+          utilities.fs.writeFile(activeFileNameClient, fileContentsClient);
+        });
+        socket.on('file_patch', function(patch) {
+          utilities.fs.readFile(activeFileName,
+            function(error, fileContentsClient) {
+              utilities.fs.writeFile(activeFileNameClient,
+                utilities.diff_match_patch.patch_apply(patch,
+                  fileContentsClient)[0]);
+            });
+        });
+        socket.on('file_in_full', function(fileContents) {
+          utilities.fs.writeFile(activeFileName, fileContentsClient);
+        });
+      },
+      // server init function
+      function() {
+        console.log("listening on " + utilities.os.hostname() + ":" +
+          utilities.SERVER_HTTP_PORT);
+      },
+      // server socket function
+      function(socket) {
+        socket.emit('connection_info', {
+          activeFileName: activeFileName,
+          fileContentsServer: fileContentsServer
+        });
+        setInterval(broadcastDiffIfChanged, utilities.DIFF_SYNC_TIME);
+        setInterval(broadcastFile, utilities.FILE_SYNC_TIME);
       });
-      socket.on('disconnect',
-        function() {
-          console.log('user ' + socket.id + ' disconnected :(');
-        });
-      socket.on('reconnect',
-        function() {
-          console.log('user ' + socket.id + ' reconnected :DDD');
-        });
-    });
-    // setInterval(broadcastDiff, utilities.DORMANT_SYNC_TIME, socket);
-    setInterval(broadcastDiff, utilities.DORMANT_SYNC_TIME);
   }
 });
 
-
+// requires emacs to be open and server to be on
 function openFileEmacs(filename) {
   emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
   emacsOpenFile.stdout.on('data', function(data) {
@@ -61,7 +88,11 @@ function openFileEmacs(filename) {
 }
 
 
-function broadcastDiff() {
+function broadcastDiffIfChanged() {
+  // TODO: actually check if file was changed, and don't broadcast if not
+  // in addition, for this to work, it'll need to save the output to the canon
+  // file version whenever a diff is broadcasted (else it will keep broadcasting
+  // the same diff and keep inserting/deleting the same thing from file)
   evalArg = "(send-buffer-to-tmp \"" + activeFileName + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsWriteFile.stdout.on('data', function(data) {
@@ -74,14 +105,16 @@ function broadcastDiff() {
     if (return_code != 0) {
       console.log("error: file could not be saved.");
     } else {
-      console.log(":DDDDDDDDDDDDDDDDDD");
-      utilities.fs.readFile(activeFileName, function(error, fileContents) {
+      console.log("diff broadcasted");
+      utilities.fs.readFile(activeFileName, function(error,
+        fileContentsServer) {
         // OPTIMIZATION: fix the asynchronicity of this nesting
         utilities.fs.readFile(activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
           function(tmpError, tmpFileContents) {
-            utilities.io.emit('file_patch', utilities.diff_match_patch
+            p.emit('file_patch', utilities.diff_match_patch
               .patch_make(
-                "" + fileContents, "" + tmpFileContents));
+                fileContentsServer.toString(), tmpFileContents.toString()
+              ));
           });
       });
     }
@@ -90,5 +123,23 @@ function broadcastDiff() {
 
 
 function broadcastFile() {
-
+  evalArg = "(send-buffer-to-tmp \"" + activeFileName + "\")";
+  emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
+  emacsWriteFile.stdout.on('data', function(data) {
+    console.log("emacs stdout: " + data);
+  });
+  emacsWriteFile.stderr.on('data', function(data) {
+    console.log("emacs stderr: " + data);
+  });
+  emacsWriteFile.on('exit', function(return_code, signal) {
+    if (return_code != 0) {
+      console.log("error: file could not be saved.");
+    } else {
+      console.log("file broadcasted");
+      utilities.fs.readFile(activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+        function(error, fileContentsServer) {
+          p.emit('file_in_full', fileContentsServer.toString());
+        });
+    }
+  });
 }
