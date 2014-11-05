@@ -136,7 +136,8 @@ function broadcastDiffIfChanged() {
 
 
 function broadcastFile() {
-  evalArg = "(send-buffer-to-tmp \"" + activeFileName + "\")";
+  evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
+    utilities.TMP_DIFF_FILE_SUFFIX + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsWriteFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
