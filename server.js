@@ -1,5 +1,4 @@
 var utilities = require('./utilities');
-var p2p = require('./p2p_socket_io');
 
 // argv[2] (required): the name of the active file
 // argv[3] (required): the ipv4 address of the server to contact first
@@ -11,7 +10,7 @@ var fileExists = true;
 
 var otherServerUri = "http://" + process.argv[3] + ':' +
   utilities.SERVER_HTTP_PORT;
-var p = new p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
+var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 
 var fileContentsClient;
 var activeFileNameClient;

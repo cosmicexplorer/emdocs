@@ -6,7 +6,6 @@ var os = require('os');
 var io = require('socket.io')(http);
 var client_io = require('socket.io-client');
 
-
 function p2p_client(initialServerUri, http_port) {
   this.otherServerUri = initialServerUri;
   this.http_port = http_port;
