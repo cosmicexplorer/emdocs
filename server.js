@@ -49,6 +49,7 @@ utilities.fs.readFile(activeFileName, function(error, fileContentsServer) {
             });
         });
         socket.on('file_in_full', function(fileContents) {
+          // TODO: gotta have mutexes for these things, for real
           utilities.fs.writeFile(activeFileName, fileContentsClient);
         });
       },
