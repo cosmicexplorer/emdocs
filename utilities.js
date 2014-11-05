@@ -3,7 +3,7 @@ var fs = require('fs');
 var os = require('os');
 var spawn = require('child_process').spawn
 var diff_match_patch = require('./diff_match_patch');
-var p2p = require('./p2p_socket_io');
+var p2p = require('./p2p');
 // constants
 const SERVER_HTTP_PORT = 8080;
 const DIFF_SYNC_TIME = 25; // in milliseconds
