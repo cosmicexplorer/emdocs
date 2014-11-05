@@ -12,8 +12,8 @@ var hash_table = require('hashtable');
 // constants
 const SERVER_HTTP_PORT = 8080;
 const HTTP_RESPONSE_OK = 200;
-const DIFF_SYNC_TIME = 250; // in milliseconds
-const FILE_SYNC_TIME = 5000;
+const DIFF_SYNC_TIME = 25; // in milliseconds
+const FILE_SYNC_TIME = 500;
 const TMP_DIFF_FILE_SUFFIX = ".tmp";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY";
 // functions
