@@ -37,7 +37,8 @@ utilities.fs.readFile(activeFileName, function(error, fileContentsServer) {
           activeFileNameClient = info.activeFileName +
             utilities.CLIENT_COPY_FILE_SUFFIX;
           fileContentsClient = info.fileContents;
-          utilities.fs.writeFile(activeFileNameClient, fileContentsClient);
+          utilities.fs.writeFile(activeFileNameClient,
+            fileContentsClient);
         });
         socket.on('file_patch', function(patch) {
           utilities.fs.readFile(activeFileName,
@@ -86,13 +87,16 @@ function openFileEmacs(filename) {
   });
 }
 
+var numberOfTimesEmitted = 0;
+
 
 function broadcastDiffIfChanged() {
   // TODO: actually check if file was changed, and don't broadcast if not
   // in addition, for this to work, it'll need to save the output to the canon
   // file version whenever a diff is broadcasted (else it will keep broadcasting
   // the same diff and keep inserting/deleting the same thing from file)
-  evalArg = "(send-buffer-to-tmp \"" + activeFileName + "\")";
+  evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
+    utilities.TMP_DIFF_FILE_SUFFIX + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsWriteFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
@@ -110,10 +114,19 @@ function broadcastDiffIfChanged() {
         // OPTIMIZATION: fix the asynchronicity of this nesting
         utilities.fs.readFile(activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
           function(tmpError, tmpFileContents) {
-            p.emit('file_patch', utilities.diff_match_patch
-              .patch_make(
-                fileContentsServer.toString(), tmpFileContents.toString()
-              ));
+            utilities.fs.writeFile(activeFileName, tmpFileContents,
+              function() {
+                var patch = utilities.diff_match_patch
+                  .patch_make(
+                    fileContentsServer.toString(),
+                    tmpFileContents.toString()
+                  );
+                p.emit('file_patch', patch);
+                ++numberOfTimesEmitted;
+                console.log("number of times emitted: " +
+                  numberOfTimesEmitted);
+                console.log(patch[0]);
+              });
           });
       });
     }
@@ -135,7 +148,7 @@ function broadcastFile() {
       console.log("error: file could not be saved.");
     } else {
       console.log("file broadcasted");
-      utilities.fs.readFile(activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+      utilities.fs.readFile(activeFileName,
         function(error, fileContentsServer) {
           p.emit('file_in_full', fileContentsServer.toString());
         });
