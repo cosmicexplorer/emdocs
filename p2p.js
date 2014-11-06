@@ -31,9 +31,9 @@ p2p_client.prototype.start = function(init_callback, socket_callback) {
     _this.selfGlobalUri = "http://" + _this.selfGlobalIpAddr + ':' +
       _this.http_port;
     // TODO: determine whether below line is required
-    _this.addSocketByUri(_this.selfLocalUri);
+    _this.addSocketByUri(_this.selfLocalUri, false);
     console.log(_this.selfLocalUri);
-    _this.addSocketByUri(_this.otherServerUri);
+    _this.addSocketByUri(_this.otherServerUri, true);
     console.log(_this.otherServerUri);
     if (typeof init_callback == "function") {
       init_callback();
