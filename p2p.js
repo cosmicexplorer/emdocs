@@ -86,6 +86,8 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
 // also serves to rejigger connections for robustness
 p2p_client.broadcastAddThisUri = function(socket, selfGlobalUri) {
   socket.emit('tell_your_clients_to_add_me', selfGlobalUri);
+  console.log("---");
+  console.log("tell_your_clients_to_add_me sent: " + selfGlobalUri);
 }
 
 p2p_client.prototype.addSocket = function(socket, isAddNew) {
