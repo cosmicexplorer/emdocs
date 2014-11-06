@@ -58,12 +58,17 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
     socket.on('add_this_server', function(userGlobalUri) {
       _this.addSocketByUri(userGlobalUri, false).emit(
         'tell_attached_client_to_add_back', _this.selfGlobalUri);
-      console.log("add_this_server: " + userGlobalUri)
+      console.log("---");
+      console.log("add_this_server received: " + userGlobalUri);
+      console.log("tell_attached_client_to_add_back sent: " +
+        _this.selfGlobalUri);
     });
     // just connect to given server uri
     socket.on('just_add_this_server', function(userGlobalUri) {
       _this.addSocketByUri(userGlobalUri, false);
-      console.log("just_add_this_server: " + userGlobalUri)
+      console.log("---");
+      console.log("just_add_this_server received: " + userGlobalUri);
+      console.log(userGlobalUri + " socket added")
     });
     socket.on('disconnect', function() {
       _this.removeSocket(socket);
@@ -136,8 +141,9 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
       function(userGlobalUri) {
         _this.localClientSocket.emit('just_add_this_server',
           userGlobalUri);
-        console.log("tell_your_client_to_connect_to_this_server: " +
-          userGlobalUri);
+        console.log("tell_your_client_to_connect_to_this_server received: " +
+                    userGlobalUri);
+        console.log("just_add_this_server sent: " + userGlobalUri);
       });
     socket.on('disconnect',
       function() {
