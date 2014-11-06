@@ -121,12 +121,14 @@ function p2p_server() {
   this.http_port = global_http_port;
   this.selfLocalIpAddr = "127.0.0.1";
   this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' + this.http_port;
+  this.socketTable = new hash_table();
 }
 
 p2p_server.prototype.start = function(init_callback, socket_callback) {
   var _this = this;
   http.listen(this.http_port, init_callback);
   io.on('connection', function(socket) {
+    _this.socketTable.put(p2p_server.getUriOfSocket(socket), socket);
     console.log("user " + p2p_server.getUriOfSocket(socket) +
       " connected :)");
     if (p2p_server.getUriOfSocket(socket) == _this.selfLocalUri) {
@@ -136,7 +138,8 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
     socket.on('tell_your_clients_to_add_me', function(userGlobalUri) {
       io.emit('add_this_server', userGlobalUri);
       console.log("---");
-      console.log("tell_your_clients_to_add_me received: " + userGlobalUri);
+      console.log("tell_your_clients_to_add_me received: " +
+        userGlobalUri);
       console.log("add_this_server sent: " + userGlobalUri);
     });
     socket.on('tell_your_client_to_connect_to_this_server',
@@ -153,11 +156,13 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
       function() {
         console.log("user " + p2p_server.getUriOfSocket(socket) +
           " disconnected :(");
+        _this.socketTable.remove(p2p_server.getUriOfSocket(socket));
       });
     socket.on('reconnect',
       function() {
         console.log("user " + p2p_server.getUriOfSocket(socket) +
           " reconnected :DDD");
+        _this.socketTable.put(p2p_server.getUriOfSocket(socket), socket);
       });
     if (typeof socket_callback == "function") {
       socket_callback(socket);

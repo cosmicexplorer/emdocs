@@ -6,13 +6,21 @@ var p = new p2p.peer("http://" + process.argv[2] + ":8080", 8080);
 p.start(
   function() {
     setInterval(function() {
-      console.log("----\nusers:")
+      console.log("----\nclient users:");
       p.client.socketTable.forEach(function(
         socketUri) {
         console.log("\t" + socketUri);
       });
-    }, 10000)
+    }, 10000);
   },
   null,
-  null,
+  function() {
+    setInterval(function() {
+      console.log("----\nserver users:");
+      p.server.socketTable.forEach(function(
+        socketUri) {
+        console.log("\t" + socketUri);
+      });
+    }, 10000);
+  },
   null);
