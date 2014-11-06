@@ -139,7 +139,7 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
       io.emit('add_this_server', userGlobalUri);
       console.log("---");
       console.log("tell_your_clients_to_add_me received: " + userGlobalUri);
-      console.log("add_this_server sent:" + userGlobalUri);
+      console.log("add_this_server sent: " + userGlobalUri);
     });
     socket.on('tell_your_client_to_connect_to_this_server',
       function(userGlobalUri) {
