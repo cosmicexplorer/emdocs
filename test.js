@@ -11,7 +11,7 @@ p.start(
         socketUri) {
         console.log("\t" + socketUri);
       });
-    }, 100000)
+    }, 10000)
   },
   null,
   null,
