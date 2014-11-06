@@ -18,8 +18,8 @@ function p2p_client(initialServerUri) {
 }
 
 p2p_client.getUriOfSocket = function(socket) {
-  console.log(socket);
-  return "http://" + socket.io.opts.host + ':' + global_http_port;
+  // console.log(socket);
+  return socket.io.uri;
 }
 
 // do everything with client inside callback
