@@ -6,17 +6,19 @@ var os = require('os');
 var io = require('socket.io')(http);
 var client_io = require('socket.io-client');
 
+const global_http_port = 8080;
 
-function p2p_client(initialServerUri, http_port) {
+
+function p2p_client(initialServerUri) {
   this.otherServerUri = initialServerUri;
-  this.http_port = http_port;
+  this.http_port = global_http_port;
   this.selfLocalIpAddr = "127.0.0.1";
-  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' + http_port;
+  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' + global_http_port;
   this.socketTable = new hash_table();
 }
 
 p2p_client.getUriOfSocket = function(socket) {
-  return "http://" + socket.io.opts.host + ':' + socket.io.opts.port;
+  return "http://" + socket.io.opts.host + ':' + global_http_port;
 }
 
 // do everything with client inside callback
@@ -106,17 +108,18 @@ p2p_client.prototype.removeSocket = function(socket) {
 }
 
 
-function p2p_server(http_port) {
-  this.http_port = http_port;
+function p2p_server() {
+  this.http_port = global_http_port;
   this.selfLocalIpAddr = "127.0.0.1";
-  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' +
-    this.http_port;
+  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' + this.http_port;
 }
 
 p2p_server.prototype.start = function(init_callback, socket_callback) {
   var _this = this;
   http.listen(this.http_port, init_callback);
   io.on('connection', function(socket) {
+    console.log("user " + p2p_server.getUriOfSocket(socket) +
+      " connected :)");
     if (p2p_server.getUriOfSocket(socket) == _this.selfLocalUri) {
       _this.localClientSocket = socket;
     }
@@ -145,8 +148,9 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
   });
 };
 
+// TODO: figure out how to get client socket's http port!
 p2p_server.getUriOfSocket = function(socket) {
-  return "http://" + socket.handshake.headers.host;
+  return "http://" + socket.handshake.address + ':' + global_http_port;
 }
 
 p2p_server.prototype.emit = function(event, data) {
@@ -154,9 +158,9 @@ p2p_server.prototype.emit = function(event, data) {
 };
 
 
-function p2p_peer(initialServerUri, http_port) {
-  this.client = new p2p_client(initialServerUri, http_port);
-  this.server = new p2p_server(http_port);
+function p2p_peer(initialServerUri) {
+  this.client = new p2p_client(initialServerUri);
+  this.server = new p2p_server();
 }
 
 p2p_peer.prototype.start = function(client_init_callback,
@@ -183,6 +187,7 @@ function getGlobalSelfIpAddr(callback) {
 }
 
 module.exports = {
+  http_port: global_http_port,
   client: p2p_client,
   server: p2p_server,
   peer: p2p_peer
