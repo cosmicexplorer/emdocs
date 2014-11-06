@@ -96,6 +96,13 @@ function broadcastDiffIfChanged() {
   // in addition, for this to work, it'll need to save the output to the canon
   // file version whenever a diff is broadcasted (else it will keep broadcasting
   // the same diff and keep inserting/deleting the same thing from file)
+  console.log("CLIENTS: " + p.client.socketTable.size());
+  // p.client.socketTable.forEach(function(c, key, value) {
+  //   console.log("socket " + c);
+  //   console.log("\tkey: " + key);
+  //   console.log("\tvalue: " + value);
+  // });
+  // console.log(p.client.socketTable);
   evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
     utilities.TMP_DIFF_FILE_SUFFIX + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
@@ -145,7 +152,8 @@ function broadcastFile() {
   emacsWriteFile.stderr.on('data', function(data) {
     console.log("emacs stderr: " + data);
   });
-  emacsWriteFile.on('exit', function(return_code, signal) {
+  emacsWriteFile.on('exit', function(
+    return_code, signal) {
     if (return_code != 0) {
       console.log("error: file could not be saved.");
     } else {
