@@ -8,10 +8,10 @@ p.start(
     setInterval(function() {
       console.log("----\nusers:")
       p.client.socketTable.forEach(function(
-        socketPair) {
-        console.log(socketPair);
+        socketUri) {
+        console.log("\t" + socketUri);
       });
-    }, 1000)
+    }, 10000)
   },
   null,
   null,

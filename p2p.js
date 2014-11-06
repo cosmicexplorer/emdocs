@@ -13,7 +13,8 @@ function p2p_client(initialServerUri) {
   this.otherServerUri = initialServerUri;
   this.http_port = global_http_port;
   this.selfLocalIpAddr = "127.0.0.1";
-  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' + global_http_port;
+  this.selfLocalUri = "http://" + this.selfLocalIpAddr + ':' +
+    global_http_port;
   this.socketTable = new hash_table();
 }
 
@@ -57,10 +58,12 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
     socket.on('add_this_server', function(userGlobalUri) {
       _this.addSocketByUri(userGlobalUri, false).emit(
         'tell_attached_client_to_add_back', _this.selfGlobalUri);
+      console.log("add_this_server: " + userGlobalUri)
     });
     // just connect to given server uri
     socket.on('just_add_this_server', function(userGlobalUri) {
       _this.addSocketByUri(userGlobalUri, false);
+      console.log("just_add_this_server: " + userGlobalUri)
     });
     socket.on('disconnect', function() {
       _this.removeSocket(socket);
@@ -127,10 +130,13 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
     // send uri of client to all clients
     socket.on('tell_your_clients_to_add_me', function(userGlobalUri) {
       io.emit('add_this_server', userGlobalUri);
+      console.log("tell_your_clients_to_add_me: " + userGlobalUri);
     });
     socket.on('tell_your_client_to_connect_to_this_server',
       function(userGlobalUri) {
         _this.localClientSocket.emit('just_add_this_server',
+          userGlobalUri);
+        console.log("tell_your_client_to_connect_to_this_server: " +
           userGlobalUri);
       });
     socket.on('disconnect',
