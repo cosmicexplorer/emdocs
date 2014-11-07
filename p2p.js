@@ -57,7 +57,7 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
       var sock = _this.addSocketByUri(userGlobalUri, false);
       setTimeout(function(){
         sock.emit('tell_attached_client_to_add_back', _this.selfGlobalUri);
-      }, 100);
+      }, 1000);
       // _this.addSocketByUri(userGlobalUri, false).emit(
       //   'tell_attached_client_to_add_back', _this.selfGlobalUri);
       console.log("---");
