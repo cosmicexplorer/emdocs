@@ -7,8 +7,7 @@ p.start(
   function() {
     setInterval(function() {
       console.log("----\nclient users:");
-      p.client.socketTable.forEach(function(
-        socketUri) {
+      p.client.socketTable.forEach(function(socketUri) {
         console.log("\t" + socketUri);
       });
     }, 10000);
@@ -17,8 +16,7 @@ p.start(
   function() {
     setInterval(function() {
       console.log("----\nserver users:");
-      p.server.socketTable.forEach(function(
-        socketUri) {
+      p.server.socketTable.forEach(function(socketUri) {
         console.log("\t" + socketUri);
       });
     }, 10000);
