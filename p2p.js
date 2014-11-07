@@ -33,7 +33,7 @@ p2p_client.prototype.start = function(init_callback, socket_callback) {
     _this.selfGlobalUri = "http://" + _this.selfGlobalIpAddr + ':' +
       _this.http_port;
     // TODO: determine whether below line is required
-    _this.addSocketByUri(_this.selfLocalUri, true);
+    _this.addSocketByUri(_this.selfLocalUri, false);
     _this.addSocketByUri(_this.otherServerUri, true);
     if (typeof init_callback == "function") {
       init_callback();
@@ -54,7 +54,7 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
     }
     // connect to given server uri and tell server's client to connect back
     socket.on('add_this_server', function(userGlobalUri) {
-      _this.addSocketByUri(userGlobalUri, true).emit(
+      _this.addSocketByUri(userGlobalUri, false).emit(
         'tell_attached_client_to_add_back', _this.selfGlobalUri);
       console.log("---");
       console.log("add_this_server received: " + userGlobalUri);
@@ -63,7 +63,7 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
     });
     // just connect to given server uri
     socket.on('just_add_this_server', function(userGlobalUri) {
-      _this.addSocketByUri(userGlobalUri, true);
+      _this.addSocketByUri(userGlobalUri, false);
       console.log("---");
       console.log("just_add_this_server received: " + userGlobalUri);
       console.log(userGlobalUri + " socket added")
@@ -72,7 +72,7 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
       _this.removeSocket(socket);
     });
     socket.on('reconnect', function() {
-      _this.addSocket(socket, true);
+      _this.addSocket(socket, false);
     });
     if (typeof _this.socket_callback == "function") {
       _this.socket_callback(socket);
