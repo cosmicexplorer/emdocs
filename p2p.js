@@ -48,6 +48,7 @@ p2p_client.prototype.getNumUsers = function() {
 p2p_client.prototype.initSocket = function(socket, isAddNew) {
   var _this = this;
   socket.on('connect', function() {
+    _this.addSocket(socket, true);
     if (isAddNew) {
       // send global uri to otherServer
       p2p_client.broadcastAddThisUri(socket, _this.selfGlobalUri);
@@ -100,12 +101,12 @@ p2p_client.prototype.addSocketByUri = function(Uri, isAddNew) {
     if (ret) {
       return ret;
     } else {
-      return this.addSocket(client_io(this.selfLocalUri), isAddNew);
+      return client_io(this.selfLocalUri);
     }
   } else {
     var ret = this.socketTable.get(Uri);
     if (!ret) {
-      return this.addSocket(client_io(Uri), isAddNew);
+      return client_io(Uri);
     } else {
       return ret;
     }
