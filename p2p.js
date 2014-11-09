@@ -8,7 +8,6 @@ var client_io = require('socket.io-client');
 
 const global_http_port = 8080;
 
-
 function p2p_client(initialServerUri) {
   this.otherServerUri = initialServerUri;
   this.http_port = global_http_port;
