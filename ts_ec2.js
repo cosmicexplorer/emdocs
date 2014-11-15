@@ -19,14 +19,15 @@ p.start(
   //   p.client.selfGlobalUri = "http://54.86.46.156:8080";
   //   // p.selfGlobalUri = "http://54.86.46.156:8080";
   // },
-null,
   null,
-  function() {
-    setInterval(function() {
-      console.log("----\nserver users:");
-      p.server.socketTable.forEach(function(socketUri) {
-        console.log("\t" + socketUri);
-      });
-    }, 10000);
-  },
+  null,
+  // function() {
+  //   setInterval(function() {
+  //     console.log("----\nserver users:");
+  //     p.server.socketTable.forEach(function(socketUri) {
+  //       console.log("\t" + socketUri);
+  //     });
+  //   }, 10000);
+  // },
+  null,
   null);
