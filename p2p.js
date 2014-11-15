@@ -134,6 +134,7 @@ p2p_server.prototype.start = function(init_callback, socket_callback) {
       " connected :)");
     if (p2p_server.getUriOfSocket(socket) == _this.selfLocalUri) {
       _this.localClientSocket = socket;
+      console.log("local client connected");
     }
     // send uri of client to all clients
     socket.on('tell_your_clients_to_add_me', function(userGlobalUri) {

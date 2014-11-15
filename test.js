@@ -18,7 +18,7 @@ io.on('connection', function(socket) {
 });
 
 init(client_io("http://127.0.0.1:8080"));
-init(client_io("http://10.67.20.197:8080"));
+init(client_io("http://172.31.28.0:8080"));
 
 function init(socket) {
   socket.on('connect', function() {
