@@ -18,7 +18,6 @@ io.on('connection', function(socket) {
 });
 
 init(client_io("http://127.0.0.1:8080"));
-init(client_io("http://172.31.28.0:8080"));
 
 function init(socket) {
   socket.on('connect', function() {
@@ -28,4 +27,11 @@ function init(socket) {
       console.log("BEES_ACKNOWLEDGED: " + dataStr)
     });
   });
+  socket.on('connect_failed', function() {
+    if (!socket.socket.connected) {
+      timer = window.setInterval(function() { connect() }, 5000);
+      console.log("UGH NO WHY");
+    }
+  });
+
 }
