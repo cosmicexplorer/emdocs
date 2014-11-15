@@ -49,10 +49,12 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
   var _this = this;
   socket.on('connect', function() {
     _this.addSocket(socket, true);
-    if (isAddNew) {
+    // if (isAddNew) {
+      console.log("client socket added: " + p2p_client.getUriOfSocket(
+        socket));
       // send global uri to otherServer
       p2p_client.broadcastAddThisUri(socket, _this.selfGlobalUri);
-    }
+    // }
     // connect to given server uri and tell server's client to connect back
     socket.on('add_this_server', function(userGlobalUri) {
       _this.addSocketByUri(userGlobalUri, false).emit(
