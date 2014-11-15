@@ -81,7 +81,7 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
       _this.socket_callback(socket);
     }
   });
-  // return socket;
+  return socket;
 }
 
 // also serves to rejigger connections for robustness
@@ -93,9 +93,8 @@ p2p_client.broadcastAddThisUri = function(socket, selfGlobalUri) {
 
 p2p_client.prototype.addSocket = function(socket, isAddNew) {
   this.socketTable.put(p2p_client.getUriOfSocket(socket), socket);
-  var insertedSocket = this.socketTable.get(p2p_client.getUriOfSocket(socket));
-  this.initSocket(insertedSocket);
-  return insertedSocket;
+  return this.initSocket(this.socketTable.get(p2p_client.getUriOfSocket(
+    socket)), isAddNew);
 }
 
 p2p_client.prototype.addSocketByUri = function(Uri, isAddNew) {
@@ -104,18 +103,14 @@ p2p_client.prototype.addSocketByUri = function(Uri, isAddNew) {
     if (ret) {
       return ret;
     } else {
-      var insertedSocket = client_io(this.selfLocalUri);
-      this.initSocket(insertedSocket);
-      return insertedSocket;
+      return this.initSocket(client_io(this.selfLocalUri));
     }
   } else {
     var ret = this.socketTable.get(Uri);
-    if (ret) {
-      return ret;
+    if (!ret) {
+      return this.initSocket(client_io(Uri));
     } else {
-      var insertedSocket = client_io(this.selfLocalUri);
-      this.initSocket(insertedSocket);
-      return insertedSocket;
+      return ret;
     }
   }
 }
