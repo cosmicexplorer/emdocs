@@ -33,8 +33,8 @@ p2p_client.prototype.start = function(init_callback, socket_callback) {
     _this.selfGlobalUri = "http://" + _this.selfGlobalIpAddr + ':' +
       _this.http_port;
     // TODO: determine whether below line is required
-    _this.addSocketByUri(_this.selfLocalUri, false);
-    _this.addSocketByUri(_this.otherServerUri, true);
+    _this.addSocketByUri(_this.selfLocalUri, null);
+    _this.addSocketByUri(_this.otherServerUri, "broadcastAddThisUri");
     if (typeof init_callback == "function") {
       init_callback();
     }
@@ -45,21 +45,21 @@ p2p_client.prototype.getNumUsers = function() {
   return this.socketTable.size();
 }
 
-p2p_client.prototype.initSocket = function(socket, isAddNew) {
+p2p_client.prototype.initSocket = function(socket, emitEvent) {
   var _this = this;
   socket.on('connect', function() {
-    _this.addSocket(socket, true);
-    // if (isAddNew) {
-    console.log("client socket added: " + p2p_client.getUriOfSocket(
-      socket));
-    // send global uri to otherServer
-    p2p_client.broadcastAddThisUri(socket, _this.selfGlobalUri);
-    // }
+    _this.addSocket(socket);
+    if ("broadcastAddThisUri" == emitEvent) {
+      console.log("client socket added: " + p2p_client.getUriOfSocket(
+        socket));
+      // send global uri to otherServer
+      p2p_client.broadcastAddThisUri(socket, _this.selfGlobalUri);
+    } else if ("tell_attached_client_to_add_back" == emitEvent) {
+      socket.emit(emitEvent, _this.selfGlobalUri);
+    }
     // connect to given server uri and tell server's client to connect back
     socket.on('add_this_server', function(userGlobalUri) {
-      _this.addSocketByUri(userGlobalUri, false);
-      _this.socketTable.get(userGlobalUri).emit(
-        'tell_attached_client_to_add_back', _this.selfGlobalUri);
+      _this.addSocketByUri(userGlobalUri, "tell_attached_client_to_add_back");
       console.log("---");
       console.log("add_this_server received: " + userGlobalUri);
       console.log("tell_attached_client_to_add_back sent from: " +
@@ -76,13 +76,13 @@ p2p_client.prototype.initSocket = function(socket, isAddNew) {
       _this.removeSocket(socket);
     });
     socket.on('reconnect', function() {
-      _this.addSocket(socket, false);
+      _this.addSocket(socket);
     });
     if (typeof _this.socket_callback == "function") {
       _this.socket_callback(socket);
     }
   });
-  // return socket;
+  return socket;
 }
 
 // also serves to rejigger connections for robustness
@@ -92,31 +92,25 @@ p2p_client.broadcastAddThisUri = function(socket, selfGlobalUri) {
   console.log("tell_your_clients_to_add_me sent: " + selfGlobalUri);
 }
 
-p2p_client.prototype.addSocket = function(socket, isAddNew) {
+p2p_client.prototype.addSocket = function(socket) {
   this.socketTable.put(p2p_client.getUriOfSocket(socket), socket);
-  var insertedSocket = this.socketTable.get(p2p_client.getUriOfSocket(socket));
-  this.initSocket(insertedSocket);
-  return insertedSocket;
+  return socket;
 }
 
-p2p_client.prototype.addSocketByUri = function(Uri, isAddNew) {
+p2p_client.prototype.addSocketByUri = function(Uri, emitEvent) {
   if (Uri == this.selfGlobalUri) {
     var ret = this.socketTable.get(this.selfLocalUri);
     if (ret) {
       return ret;
     } else {
-      var insertedSocket = client_io(this.selfLocalUri);
-      this.initSocket(insertedSocket);
-      return insertedSocket;
+      return this.initSocket(client_io(this.selfLocalUri), null);
     }
   } else {
     var ret = this.socketTable.get(Uri);
-    if (ret) {
-      return ret;
+    if (!ret) {
+      return this.initSocket(client_io(Uri), emitEvent);
     } else {
-      var insertedSocket = client_io(this.selfLocalUri);
-      this.initSocket(insertedSocket);
-      return insertedSocket;
+      return ret;
     }
   }
 }
