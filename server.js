@@ -29,12 +29,14 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         activeFileName = sentFileName;
       });
       socket.on('file_send', function(sentFileContents) {
-        utilities.fs.writeFile(
-          activeFileName,
-          sentFileContents,
-          function() {
-            updateBufferInEmacs(activeFileName);
-          });
+        if ("127.0.0.1" != utilities.p2p.client.getUriOfSocket(socket)) {
+          utilities.fs.writeFile(
+            activeFileName,
+            sentFileContents,
+            function() {
+              updateBufferInEmacs(activeFileName);
+            });
+        }
       });
     },
     // server init function
