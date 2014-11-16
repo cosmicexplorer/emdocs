@@ -91,7 +91,13 @@ function broadcastBuffer() {
         activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
         function(error, fileContents) {
           if (error) {
-            throw error;
+            utilities.fs.writeFile(
+              activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+              "",
+              function() {
+                p.emit('file_send', fileContents.toString());
+              }
+            );
           }
           p.emit('file_send', fileContents.toString());
         });
