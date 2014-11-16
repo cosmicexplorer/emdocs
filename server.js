@@ -30,7 +30,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
       });
       socket.on('file_send', function(sentFileContents) {
         if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-            utilities.p2p.client.getUriOfSocket(socket)) {
+          utilities.p2p.client.getUriOfSocket(socket)) {
           utilities.fs.writeFile(
             activeFileName,
             sentFileContents,
@@ -56,7 +56,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
 
 // requires emacs to be open and server to be on
 function openFileInEmacs(filename) {
-  emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
+  var emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
   emacsOpenFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
   });
@@ -72,10 +72,14 @@ function openFileInEmacs(filename) {
   });
 }
 
+
 function broadcastBuffer() {
-  evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
-    utilities.TMP_FILENAME_SUFFIX + "\")";
-  emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
+  // evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
+  //   utilities.TMP_FILENAME_SUFFIX + "\")";
+  // var emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
+  var emacsWriteFile = spawnEmacsCommand(
+    "send-buffer-to-file", "\"" + activeFileName + "\"",
+    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
   emacsWriteFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
   });
@@ -108,8 +112,6 @@ function broadcastBuffer() {
 
 
 function updateBufferInEmacs(filename) {
-  // var evalArg = "(read-buffer-from-file \"" + filename + "\")";
-  // var emacsReadFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   var emacsReadFile = spawnEmacsCommand(
     "read-buffer-from-file", "\"" + filename + "\"");
   emacsReadFile.stdout.on('data', function(data) {
@@ -128,9 +130,9 @@ function updateBufferInEmacs(filename) {
 
 // takes variable number of arguments
 // returns spawn object
-function spawnEmacsCommand(){
+function spawnEmacsCommand() {
   var evalArg = "(";
-  for (var i = 0; i < arguments.length; ++i){
+  for (var i = 0; i < arguments.length; ++i) {
     evalArg += arguments[i] + " ";
   }
   evalArg += ")";
