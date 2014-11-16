@@ -29,7 +29,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         activeFileName = sentFileName;
       });
       socket.on('file_send', function(sentFileContents) {
-        if ("http://127.0.0.1" + utilities.SERVER_HTTP_PORT !=
+        if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
             utilities.p2p.client.getUriOfSocket(socket)) {
           utilities.fs.writeFile(
             activeFileName,
