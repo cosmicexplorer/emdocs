@@ -8,7 +8,7 @@ var p2p = require('./p2p');
 const SERVER_HTTP_PORT = 8080;
 const DIFF_SYNC_TIME = 250; // in milliseconds
 const FILE_SYNC_TIME = 1500;
-const TMP_DIFF_FILE_SUFFIX = ".tmp";
+const TMP_FILENAME_SUFFIX = ".tmp";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY";
 
 // split into declarations and exports because variables need to be declared and
@@ -22,6 +22,6 @@ module.exports = {
   SERVER_HTTP_PORT: SERVER_HTTP_PORT,
   DIFF_SYNC_TIME: DIFF_SYNC_TIME,
   FILE_SYNC_TIME: FILE_SYNC_TIME,
-  TMP_DIFF_FILE_SUFFIX: TMP_DIFF_FILE_SUFFIX,
+  TMP_FILENAME_SUFFIX: TMP_FILENAME_SUFFIX,
   CLIENT_COPY_FILE_SUFFIX: CLIENT_COPY_FILE_SUFFIX,
 }

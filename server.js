@@ -72,10 +72,9 @@ function openFileInEmacs(filename) {
   });
 }
 
-
 function broadcastBuffer() {
   evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
-    utilities.TMP_DIFF_FILE_SUFFIX + "\")";
+    utilities.TMP_FILENAME_SUFFIX + "\")";
   emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsWriteFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
@@ -89,13 +88,12 @@ function broadcastBuffer() {
       console.log("error: file could not be saved.");
     } else {
       console.log("file broadcasted");
-      // did not previously have the + utilities.TMP_DIFF_FILE_SUFFIX
       utilities.fs.readFile(
-        activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+        activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(error, fileContents) {
           if (error) {
             utilities.fs.writeFile(
-              activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
+              activeFileName + utilities.TMP_FILENAME_SUFFIX,
               "",
               function() {
                 p.emit('file_send', fileContents.toString());
@@ -110,8 +108,10 @@ function broadcastBuffer() {
 
 
 function updateBufferInEmacs(filename) {
-  evalArg = "(read-buffer-from-file \"" + filename + "\")";
-  emacsReadFile = utilities.spawn('emacsclient', ['-e', evalArg]);
+  // var evalArg = "(read-buffer-from-file \"" + filename + "\")";
+  // var emacsReadFile = utilities.spawn('emacsclient', ['-e', evalArg]);
+  var emacsReadFile = spawnEmacsCommand(
+    "read-buffer-from-file", "\"" + filename + "\"");
   emacsReadFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
   });
@@ -124,4 +124,15 @@ function updateBufferInEmacs(filename) {
     }
     console.log("file read");
   });
+}
+
+// takes variable number of arguments
+// returns spawn object
+function spawnEmacsCommand(){
+  var evalArg = "(";
+  for (var i = 0; i < arguments.length; ++i){
+    evalArg += arguments[i] + " ";
+  }
+  evalArg += ")";
+  return utilities.spawn('emacsclient', ['-e', evalArg]);
 }
