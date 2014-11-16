@@ -15,7 +15,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
   if (error) {
     throw err;
   }
-  openFileEmacs(activeFileName);
+  openFileInEmacs(activeFileName);
   p.start(
     // client init function
     function() {
@@ -32,11 +32,8 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         utilities.fs.writeFile(
           activeFileName,
           sentFileContents,
-          function(error) {
-            if (error) {
-              throw error;
-            }
-            sendFileToEmacs(activeFileName);
+          function() {
+            updateBufferInEmacs(activeFileName);
           });
       });
     },
@@ -55,7 +52,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
 });
 
 // requires emacs to be open and server to be on
-function openFileEmacs(filename) {
+function openFileInEmacs(filename) {
   emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
   emacsOpenFile.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
@@ -93,7 +90,7 @@ function broadcastBuffer() {
       utilities.fs.readFile(
         activeFileName + utilities.TMP_DIFF_FILE_SUFFIX,
         function(error, fileContents) {
-          if (error){
+          if (error) {
             throw error;
           }
           p.emit('file_send', fileContents.toString());
@@ -103,7 +100,7 @@ function broadcastBuffer() {
 }
 
 
-function sendFileToEmacs(filename) {
+function updateBufferInEmacs(filename) {
   evalArg = "(read-buffer-from-file \"" + filename + "\")";
   emacsReadFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   emacsReadFile.stdout.on('data', function(data) {
