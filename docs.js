@@ -36,7 +36,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
           utilities.p2p.client.getUriOfSocket(socket)) {
           utilities.fs.writeFile(
-            activeFileName,
+            activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
             sentFileContents,
             function(error) {
               if (error) {
@@ -51,15 +51,17 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
           utilities.p2p.client.getUriOfSocket(socket)) {
           utilities.fs.readFile(
-            activeFileName,
+            activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
             function(error,
               readFileContents) {
               if (error) {
                 console.log(error);
               }
               utilities.fs.writeFile(
-                activeFileName,
-                patch_apply(sentFilePatch, readFileContents)[0], // get patched text
+                activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
+                utilities.diff_match_patch.patch_apply(
+                  sentFilePatch,
+                  readFileContents)[0],
                 function(error) {
                   if (error) {
                     console.log(error);
@@ -116,10 +118,9 @@ function broadcastBuffer() {
   });
   emacsWriteFile.on('exit', function(
     return_code, signal) {
-    if (return_code != 0) {
-      console.log("error: file could not be saved.");
+    if (0 != return_code) {
+      console.log("error: buffer could not be saved.");
     } else {
-      console.log("file broadcasted");
       utilities.fs.readFile(
         activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(error, fileContents) {
@@ -128,13 +129,54 @@ function broadcastBuffer() {
           }
           p.emit('file_send', fileContents.toString());
         });
+      console.log("file broadcasted");
     }
   });
 }
 
-function broadcastDiff(){
-  utilities.fs.readFile();
+
+function broadcastDiff() {
+  var emacsWriteFile = spawnEmacsCommand(
+    "send-buffer-to-file", "\"" + activeFileName + "\"",
+    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
+  emacsWriteFile.stdout.on('data', function(data) {
+    console.log("emacs stdout: " + data)
+  });
+  emacsWriteFile.stderr.on('data', function(data) {
+    console.log("emacs stderr: " + data);
+  });
+  emacsWriteFile.on('exit', function(return_code, signal) {
+    if (0 != return_code) {
+      console.log("error: buffer could not be saved.");
+    } else {
+      utilities.fs.readFile(
+        activeFileName + utilities.TMP_FILENAME_SUFFIX,
+        function(tmpError, tmpFileContents) {
+          if (tmpError) {
+            console.log(error);
+          }
+          utilities.fs.readFile(
+            activeFileName,
+            function(curError, curFileContents) {
+              if (curError) {
+                console.log(error);
+              }
+              utilities.fs.writeFile(
+                activeFileName,
+                tmpFileContents,
+                function(error) {
+                  console.log(error);
+                  p.emit('file_diff',
+                    utilities.diff_match_patch.patch_make(
+                      curFileContents, tmpFileContents));
+                }
+              )
+            });
+        });
+    }
+  });
 }
+
 
 function updateBufferInEmacs(filename) {
   var emacsReadFile = spawnEmacsCommand(
