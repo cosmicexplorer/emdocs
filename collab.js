@@ -9,11 +9,14 @@ var fileContents;
 
 var otherServerUri = "http://" + process.argv[3] + ':' +
   utilities.SERVER_HTTP_PORT;
+
 var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
+
+// TODO: make proxy solution for network with firewall which blocks all ports
 
 utilities.fs.writeFile(activeFileName, "", function(error) {
   if (error) {
-    throw err;
+    console.log(error);
   }
   openFileInEmacs(activeFileName);
   p.start(
@@ -29,13 +32,40 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         activeFileName = sentFileName;
       });
       socket.on('file_send', function(sentFileContents) {
+        // if not self socket
         if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
           utilities.p2p.client.getUriOfSocket(socket)) {
           utilities.fs.writeFile(
             activeFileName,
             sentFileContents,
-            function() {
+            function(error) {
+              if (error) {
+                console.log(error);
+              }
               updateBufferInEmacs(activeFileName);
+            });
+        }
+      });
+      socket.on('file_diff', function(sentFilePatch) {
+        // if not self socket
+        if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+          utilities.p2p.client.getUriOfSocket(socket)) {
+          utilities.fs.readFile(
+            activeFileName,
+            function(error,
+              readFileContents) {
+              if (error) {
+                console.log(error);
+              }
+              utilities.fs.writeFile(
+                activeFileName,
+                patch_apply(sentFilePatch, readFileContents)[0], // get patched text
+                function(error) {
+                  if (error) {
+                    console.log(error);
+                  }
+                  updateBufferInEmacs(activeFileName);
+                });
             });
         }
       });
@@ -46,6 +76,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
         utilities.SERVER_HTTP_PORT);
       if ("127.0.0.1" == process.argv[3]) { // if initial server
         setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
       }
     },
     // server socket function
@@ -74,9 +105,6 @@ function openFileInEmacs(filename) {
 
 
 function broadcastBuffer() {
-  // evalArg = "(send-buffer-to-file \"" + activeFileName + "\" \"" +
-  //   utilities.TMP_FILENAME_SUFFIX + "\")";
-  // var emacsWriteFile = utilities.spawn('emacsclient', ['-e', evalArg]);
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
     "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
@@ -96,13 +124,7 @@ function broadcastBuffer() {
         activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(error, fileContents) {
           if (error) {
-            utilities.fs.writeFile(
-              activeFileName + utilities.TMP_FILENAME_SUFFIX,
-              "",
-              function() {
-                p.emit('file_send', fileContents.toString());
-              }
-            );
+            console.log(error);
           }
           p.emit('file_send', fileContents.toString());
         });
@@ -110,6 +132,9 @@ function broadcastBuffer() {
   });
 }
 
+function broadcastDiff(){
+  utilities.fs.readFile();
+}
 
 function updateBufferInEmacs(filename) {
   var emacsReadFile = spawnEmacsCommand(
