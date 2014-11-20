@@ -89,7 +89,7 @@ utilities.fs.writeFile(
                   ':' +
                   utilities.SERVER_HTTP_PORT);
                 if ("127.0.0.1" == process.argv[3]) { // if initial server
-                  setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+                  // setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
                   setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
                 }
               },
@@ -206,7 +206,7 @@ function performPatchFromFile(filename, callback) {
   );
   setupEmacsSpawn(
     emacsPerformPatch,
-    "error: file could not be loaded",
+    "error: patch could not be performed",
     "file loaded",
     callback);
 }
