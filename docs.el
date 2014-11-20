@@ -36,28 +36,29 @@
 
 (require 'json)
 
-(defun perform-patch-from-file (patch-file)
+(defun perform-patch-from-file (patch-file suffix)
   "Parse output of google's diff_match_patch from a file and apply it to the
 current buffer. Assumes the patch is 'correct' in that it is able to be applied
 without any errors."
   (interactive)
-  (let ((json-object-type 'plist)
-        (json-diff-struct nil)
-        (cur-diff-set nil)
-        (diff-vector nil))
-    (setq json-diff-struct
-          (json-read-from-string (read-file-to-string patch-file)))
-    (save-excursion
-      (loop
-       for diff-index from (1- (length json-diff-struct)) downto 0
-       do (progn
-            (setq cur-diff-set (aref json-diff-struct diff-index))
-            (goto-char (1+ (plist-get cur-diff-set :start1)))
-            (setq diff-vector (plist-get cur-diff-set :diffs))
-            ;; simple iteration over the vector isn't working, so aref and index
-            (loop for diff-pair-index from 0 upto (1- (length diff-vector))
-                  do (perform-diff-operation
-                      (aref diff-vector diff-pair-index))))))))
+  (with-current-buffer patch-file
+    (let ((json-object-type 'plist)
+          (json-diff-struct nil)
+          (cur-diff-set nil)
+          (diff-vector nil))
+      (setq json-diff-struct
+            (json-read-from-string (read-file-to-string (concat patch-file suffix))))
+      (save-excursion
+        (loop
+         for diff-index from (1- (length json-diff-struct)) downto 0
+         do (progn
+              (setq cur-diff-set (aref json-diff-struct diff-index))
+              (goto-char (1+ (plist-get cur-diff-set :start1)))
+              (setq diff-vector (plist-get cur-diff-set :diffs))
+              ;; simple iteration over the vector isn't working, so aref and index
+              (loop for diff-pair-index from 0 upto (1- (length diff-vector))
+                    do (perform-diff-operation
+                        (aref diff-vector diff-pair-index)))))))))
 
 (defun perform-diff-operation (diff-pair-vector)
   "Helper function which performs the diffing operation specified by a

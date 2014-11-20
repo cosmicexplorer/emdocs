@@ -5,7 +5,7 @@ var utilities = require('./utilities');
 
 var activeFileName = process.argv[2];
 
-var fileContents = "";
+var fileContents = "\n";
 var tmpFileContents = fileContents;
 
 var otherServerUri = "http://" + process.argv[3] + ':' +
@@ -15,98 +15,87 @@ var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 
 // TODO: make proxy solution for network with firewall which blocks all ports
 
-utilities.fs.writeFile(
-  activeFileName,
-  fileContents,
-  function(error) {
-    if (error) {
-      console.log(error);
-    }
-    utilities.fs.writeFile(
-      activeFileName + utilities.TMP_FILENAME_SUFFIX,
-      tmpFileContents,
-      function(error) {
-        if (error) {
-          console.log(error);
-        }
-        loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
-          openFileInEmacs(activeFileName, function() {
-            p.start(
-              // client init function
-              function() {
-                console.log("speaking on " + utilities.os.hostname() +
-                  ':' +
-                  utilities.SERVER_HTTP_PORT);
-              },
-              // client socket function
-              function(socket) {
-                // get user id, filename, and file contents; write to file
-                socket.on('connection_info', function(
-                  sentFileName) {
-                  activeFileName = sentFileName;
-                });
-                socket.on('file_send', function(sentFileContents) {
-                  // if not self socket
-                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                    utilities.p2p.client.getUriOfSocket(
-                      socket)) {
-                    utilities.fs.writeFile(
-                      activeFileName,
-                      sentFileContents.toString(),
-                      function(error) {
-                        if (error) {
-                          console.log(error);
-                        }
-                        updateBufferInEmacs(activeFileName);
-                        console.log("file received");
-                      });
-                  }
-                });
-                socket.on('file_diff', function(sentFilePatch) {
-                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                    utilities.p2p.client.getUriOfSocket(
-                      socket)) {
-                    utilities.fs.readFile(
-                      activeFileName,
-                      function(error, readFileContents) {
-                        utilities.fs.writeFile(
-                          activeFileName +
-                          utilities.DIFF_FILENAME_SUFFIX,
-                          JSON.stringify(sentFilePatch),
-                          function(error) {
-                            if (error) {
-                              console.log(error);
-                            }
-                            console.log(JSON.stringify(
-                              sentFilePatch));
-                            performPatchFromFile(
-                              activeFileName +
-                              utilities.DIFF_FILENAME_SUFFIX
-                            );
-                            console.log("diff received");
-                          });
-                      });
-                  }
-                });
-              },
-              // server init function
-              function() {
-                console.log("listening on " + utilities.os.hostname() +
-                  ':' +
-                  utilities.SERVER_HTTP_PORT);
-                if ("127.0.0.1" == process.argv[3]) { // if initial server
-                  // setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-                  setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-                }
-              },
-              // server socket function
-              function(socket) {
-                socket.emit('connection_info', activeFileName);
-              });
-          });
+utilities.fs.writeFileSync(activeFileName, fileContents);
+utilities.fs.writeFileSync(
+  activeFileName + utilities.TMP_FILENAME_SUFFIX,
+  tmpFileContents);
+
+loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
+  openFileInEmacs(activeFileName, function() {
+    p.start(
+      // client init function
+      function() {
+        console.log("speaking on " + utilities.os.hostname() +
+          ':' +
+          utilities.SERVER_HTTP_PORT);
+      },
+      // client socket function
+      function(socket) {
+        // get user id, filename, and file contents; write to file
+        socket.on('connection_info', function(
+          sentFileName) {
+          activeFileName = sentFileName;
         });
+        socket.on('file_send', function(sentFileContents) {
+          // if not self socket
+          if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+            utilities.p2p.client.getUriOfSocket(
+              socket)) {
+            utilities.fs.writeFile(
+              activeFileName,
+              sentFileContents.toString(),
+              function(error) {
+                if (error) {
+                  console.log(error);
+                }
+                updateBufferInEmacs(activeFileName);
+                console.log("file received");
+              });
+          }
+        });
+        socket.on('file_diff', function(sentFilePatch) {
+          if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+            utilities.p2p.client.getUriOfSocket(
+              socket)) {
+            utilities.fs.readFile(
+              activeFileName,
+              function(error, readFileContents) {
+                utilities.fs.writeFile(
+                  activeFileName +
+                  utilities.DIFF_FILENAME_SUFFIX,
+                  JSON.stringify(sentFilePatch),
+                  function(error) {
+                    if (error) {
+                      console.log(error);
+                    }
+                    console.log(JSON.stringify(
+                      sentFilePatch));
+                    performPatchFromFile(
+                      activeFileName,
+                      utilities.DIFF_FILENAME_SUFFIX
+                    );
+                    console.log("diff received");
+                  });
+              });
+          }
+        });
+      },
+      // server init function
+      function() {
+        console.log("listening on " + utilities.os.hostname() +
+          ':' +
+          utilities.SERVER_HTTP_PORT);
+        if ("127.0.0.1" == process.argv[3]) { // if initial server
+          // setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+        }
+      },
+      // server socket function
+      function(socket) {
+        socket.emit('connection_info', activeFileName);
       });
   });
+});
 
 // requires emacs to be open and server to be on
 function openFileInEmacs(filename, callback) {
@@ -206,9 +195,9 @@ function loadEmacsLisp(filename, callback) {
 }
 
 
-function performPatchFromFile(filename, callback) {
+function performPatchFromFile(filename, suffix, callback) {
   var emacsPerformPatch = spawnEmacsCommand(
-    "perform-patch-from-file", "\"" + filename + "\""
+    "perform-patch-from-file", "\"" + filename + "\"", "\"" + suffix + "\""
   );
   setupEmacsSpawn(
     emacsPerformPatch,
