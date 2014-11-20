@@ -70,14 +70,19 @@ utilities.fs.writeFile(
                       activeFileName,
                       function(error, readFileContents) {
                         utilities.fs.writeFile(
-                          activeFileName,
+                          activeFileName +
+                          utilities.DIFF_FILENAME_SUFFIX,
                           JSON.stringify(sentFilePatch),
                           function(error) {
                             if (error) {
                               console.log(error);
                             }
-                            console.log(JSON.stringify(sentFilePatch));
-                            performPatchFromFile(activeFileName);
+                            console.log(JSON.stringify(
+                              sentFilePatch));
+                            performPatchFromFile(
+                              activeFileName +
+                              utilities.DIFF_FILENAME_SUFFIX
+                            );
                             console.log("diff received");
                           });
                       });

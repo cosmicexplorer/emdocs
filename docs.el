@@ -1,3 +1,10 @@
+;; asdfasdfasdf
+;; asdfasdfasdf
+;; asdfasdfasdf
+;; RACECARS
+
+;; (perform-patch-from-file "test_node_output")
+
 (defconst executable-directory "/home/cosmicexplorer/projects/CollabEmacs/")
 
 (defun send-buffer-to-file (file-name suffix)
