@@ -175,6 +175,10 @@ function broadcastDiff() {
                 tmpFileContents,
                 function(error) {
                   console.log(error);
+                  console.log(curFileContents);
+                  console.log(
+                    utilities.diff_match_patch.patch_make(
+                      curFileContents, tmpFileContents));
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
                       curFileContents, tmpFileContents));
