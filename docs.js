@@ -84,6 +84,7 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
     // server socket function
     function(socket) {
       socket.emit('connection_info', activeFileName);
+      broadcastBuffer();
     });
 });
 
