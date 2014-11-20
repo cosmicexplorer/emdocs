@@ -3,9 +3,9 @@
 ;; asdfasdfasdf
 ;; RACECARS
 
-;; (perform-patch-from-file "test_node_output")
+;; (perform-patch-from-file "emacs_integration.el" "test_node_output")
 
-(defconst executable-directory "/home/cosmicexplorer/projects/CollabEmacs/")
+(defconst executable-directory "/home/cosmicexplorer/projects/emdocs/")
 
 (defun send-buffer-to-file (buffer-name file-path)
   "Sends contents of buffer buffer-name to file identified by file-path."

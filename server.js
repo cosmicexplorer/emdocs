@@ -162,8 +162,8 @@ function broadcastDiff() {
                   }
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(), tmpFileContents
-                      .toString()));
+                      curFileContents.toString(),
+                      tmpFileContents.toString()));
                 }
               );
             });
