@@ -5,7 +5,7 @@ var utilities = require('./utilities');
 
 var activeFileName = process.argv[2];
 
-var fileContents;
+var fileContents = "";
 
 var otherServerUri = "http://" + process.argv[3] + ':' +
   utilities.SERVER_HTTP_PORT;
@@ -14,7 +14,7 @@ var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 
 // TODO: make proxy solution for network with firewall which blocks all ports
 
-utilities.fs.writeFile(activeFileName, "", function(error) {
+utilities.fs.writeFile(activeFileName, fileContents, function(error) {
   if (error) {
     console.log(error);
   }
@@ -84,7 +84,6 @@ utilities.fs.writeFile(activeFileName, "", function(error) {
     // server socket function
     function(socket) {
       socket.emit('connection_info', activeFileName);
-      broadcastBuffer();
     });
 });
 
