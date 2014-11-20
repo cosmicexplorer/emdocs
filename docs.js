@@ -26,7 +26,7 @@ utilities.fs.writeFile(
       activeFileName + utilities.TMP_FILENAME_SUFFIX,
       tmpFileContents,
       function(error) {
-        if (error){
+        if (error) {
           console.log(error);
         }
         openFileInEmacs(activeFileName);
@@ -54,6 +54,27 @@ utilities.fs.writeFile(
                       console.log(error);
                     }
                     updateBufferInEmacs(activeFileName);
+                  });
+              }
+            });
+            socket.on('file_diff', function(sentFilePatch) {
+              if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                utilities.p2p.client.getUriOfSocket(socket)) {
+                utilities.fs.readFile(
+                  activeFileName,
+                  function(error, readFileContents) {
+                    utilities.fs.writeFile(
+                      activeFileName,
+                      utilities.diff_match_patch.patch_apply(
+                        sentFilePatch,
+                        readFileContents
+                      )[0],     // get patched text
+                      function(error) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        updateBufferInEmacs(activeFileName);
+                      });
                   });
               }
             });
@@ -117,6 +138,49 @@ function broadcastBuffer() {
           console.log("file broadcasted")
         });;
     }
+  });
+}
+
+
+function broadcastDiff() {
+  var emacsWriteFile = spawnEmacsCommand(
+    "send-buffer-to-file", "\"" + activeFileName + "\"",
+    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
+  emacsWriteFile.stdout.on('data', function(data) {
+    console.log("emacs stdout: " + data)
+  });
+  emacsWriteFile.stderr.on('data', function(data) {
+    console.log("emacs stderr: " + data);
+  });
+  emacsWriteFile.on('exit', function(return_code, signal) {
+    if (0 != return_code) {
+      console.log("error: buffer could not be saved.");
+    } else {
+      utilities.fs.readFile(
+        activeFileName + utilities.TMP_FILENAME_SUFFIX,
+        function(tmpError, tmpFileContents) {
+          if (tmpError) {
+            console.log(error);
+          }
+          utilities.fs.readFile(
+            activeFileName,
+            function(curError, curFileContents) {
+              if (curError) {
+                console.log(error);
+              }
+              utilities.fs.writeFile(
+                activeFileName,
+                tmpFileContents,
+                function(error) {
+                  console.log(error);
+                  p.emit('file_diff',
+                    utilities.diff_match_patch.patch_make(
+                      curFileContents, tmpFileContents));
+                }
+              )
+            });
+        });
+    } +
   });
 }
 
