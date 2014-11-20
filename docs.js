@@ -137,8 +137,8 @@ function broadcastBuffer() {
             console.log(error);
           }
           p.emit('file_send', fileContents.toString());
-        });
-      console.log("file broadcasted");
+          console.log("file broadcasted")
+        });;
     }
   });
 }
@@ -177,7 +177,9 @@ function broadcastDiff() {
                   console.log(error);
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(), tmpFileContents.toString()));
+                      curFileContents.toString(), tmpFileContents
+                        .toString()));
+                  console.log("diff broadcasted");
                 }
               )
             });
