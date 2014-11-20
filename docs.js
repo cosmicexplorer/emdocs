@@ -134,6 +134,7 @@ function broadcastBuffer() {
   });
 }
 
+
 function broadcastDiff() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
@@ -159,6 +160,8 @@ function broadcastDiff() {
             function(curError, curFileContents) {
               if (curError) {
                 console.log(curError);
+                console.log(tmpFileContents);
+                console.log(curFileContents);
               }
               utilities.fs.writeFile(
                 activeFileName,
