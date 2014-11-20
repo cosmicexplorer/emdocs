@@ -173,7 +173,9 @@ function broadcastDiff() {
                 activeFileName,
                 tmpFileContents,
                 function(error) {
-                  console.log(error);
+                  if (error){
+                    console.log(error);
+                  }
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
                       curFileContents.toString(), tmpFileContents.toString()));
