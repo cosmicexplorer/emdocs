@@ -45,7 +45,7 @@ utilities.fs.writeFile(
                 utilities.p2p.client.getUriOfSocket(socket)) {
                 utilities.fs.writeFile(
                   activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-                  sentFileContents,
+                  sentFileContents.toString(),
                   function(error) {
                     if (error) {
                       console.log(error);
@@ -69,7 +69,7 @@ utilities.fs.writeFile(
                       activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
                       utilities.diff_match_patch.patch_apply(
                         sentFilePatch,
-                        readFileContents)[0],
+                        readFileContents.toString())[0],
                       function(error) {
                         if (error) {
                           console.log(error);
@@ -175,13 +175,9 @@ function broadcastDiff() {
                 tmpFileContents,
                 function(error) {
                   console.log(error);
-                  console.log(curFileContents);
-                  console.log(
-                    utilities.diff_match_patch.patch_make(
-                      curFileContents, tmpFileContents));
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
-                      curFileContents, tmpFileContents));
+                      curFileContents.toString(), tmpFileContents.toString()));
                 }
               )
             });
