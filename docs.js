@@ -6,6 +6,7 @@ var utilities = require('./utilities');
 var activeFileName = process.argv[2];
 
 var fileContents = "";
+var tmpFileContents = fileContents;
 
 var otherServerUri = "http://" + process.argv[3] + ':' +
   utilities.SERVER_HTTP_PORT;
@@ -18,72 +19,76 @@ utilities.fs.writeFile(activeFileName, fileContents, function(error) {
   if (error) {
     console.log(error);
   }
-  openFileInEmacs(activeFileName);
-  p.start(
-    // client init function
-    function() {
-      console.log("speaking on " + utilities.os.hostname() + ':' +
-        utilities.SERVER_HTTP_PORT);
-    },
-    // client socket function
-    function(socket) {
-      // get user id, filename, and file contents; write to file
-      socket.on('connection_info', function(sentFileName) {
-        activeFileName = sentFileName;
-      });
-      socket.on('file_send', function(sentFileContents) {
-        // if not self socket
-        if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-          utilities.p2p.client.getUriOfSocket(socket)) {
-          utilities.fs.writeFile(
-            activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-            sentFileContents,
-            function(error) {
-              if (error) {
-                console.log(error);
-              }
-              updateBufferInEmacs(activeFileName);
-            });
-        }
-      });
-      socket.on('file_diff', function(sentFilePatch) {
-        // if not self socket
-        if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-          utilities.p2p.client.getUriOfSocket(socket)) {
-          utilities.fs.readFile(
-            activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-            function(error,
-              readFileContents) {
-              if (error) {
-                console.log(error);
-              }
+  utilities.fs.writeFile(activeFileName + utilities.TMP_FILENAME_SUFFIX,
+    function(error) {
+
+      openFileInEmacs(activeFileName);
+      p.start(
+        // client init function
+        function() {
+          console.log("speaking on " + utilities.os.hostname() + ':' +
+            utilities.SERVER_HTTP_PORT);
+        },
+        // client socket function
+        function(socket) {
+          // get user id, filename, and file contents; write to file
+          socket.on('connection_info', function(sentFileName) {
+            activeFileName = sentFileName;
+          });
+          socket.on('file_send', function(sentFileContents) {
+            // if not self socket
+            if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+              utilities.p2p.client.getUriOfSocket(socket)) {
               utilities.fs.writeFile(
                 activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-                utilities.diff_match_patch.patch_apply(
-                  sentFilePatch,
-                  readFileContents)[0],
+                sentFileContents,
                 function(error) {
                   if (error) {
                     console.log(error);
                   }
                   updateBufferInEmacs(activeFileName);
                 });
-            });
-        }
-      });
-    },
-    // server init function
-    function() {
-      console.log("listening on " + utilities.os.hostname() + ':' +
-        utilities.SERVER_HTTP_PORT);
-      if ("127.0.0.1" == process.argv[3]) { // if initial server
-        setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-      }
-    },
-    // server socket function
-    function(socket) {
-      socket.emit('connection_info', activeFileName);
+            }
+          });
+          socket.on('file_diff', function(sentFilePatch) {
+            // if not self socket
+            if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+              utilities.p2p.client.getUriOfSocket(socket)) {
+              utilities.fs.readFile(
+                activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
+                function(error,
+                  readFileContents) {
+                  if (error) {
+                    console.log(error);
+                  }
+                  utilities.fs.writeFile(
+                    activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
+                    utilities.diff_match_patch.patch_apply(
+                      sentFilePatch,
+                      readFileContents)[0],
+                    function(error) {
+                      if (error) {
+                        console.log(error);
+                      }
+                      updateBufferInEmacs(activeFileName);
+                    });
+                });
+            }
+          });
+        },
+        // server init function
+        function() {
+          console.log("listening on " + utilities.os.hostname() + ':' +
+            utilities.SERVER_HTTP_PORT);
+          if ("127.0.0.1" == process.argv[3]) { // if initial server
+            setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+            setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+          }
+        },
+        // server socket function
+        function(socket) {
+          socket.emit('connection_info', activeFileName);
+        });
     });
 });
 
