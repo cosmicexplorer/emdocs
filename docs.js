@@ -26,6 +26,9 @@ utilities.fs.writeFile(
       activeFileName + utilities.TMP_FILENAME_SUFFIX,
       tmpFileContents,
       function(error) {
+        if (error){
+          console.log(error);
+        }
         openFileInEmacs(activeFileName);
         p.start(
           // client init function
@@ -44,7 +47,7 @@ utilities.fs.writeFile(
               if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                 utilities.p2p.client.getUriOfSocket(socket)) {
                 utilities.fs.writeFile(
-                  activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
+                  activeFileName,
                   sentFileContents.toString(),
                   function(error) {
                     if (error) {
