@@ -161,13 +161,13 @@ function broadcastDiff() {
         activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(tmpError, tmpFileContents) {
           if (tmpError) {
-            console.log(error);
+            console.log(tmpError);
           }
           utilities.fs.readFile(
             activeFileName,
             function(curError, curFileContents) {
               if (curError) {
-                console.log(error);
+                console.log(curError);
               }
               utilities.fs.writeFile(
                 activeFileName,
