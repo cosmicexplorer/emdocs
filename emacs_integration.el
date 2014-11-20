@@ -7,18 +7,20 @@
 
 (defconst executable-directory "/home/cosmicexplorer/projects/CollabEmacs/")
 
-(defun send-buffer-to-file (file-name suffix)
-  (with-current-buffer file-name
+(defun send-buffer-to-file (buffer-name file-path)
+  "Sends contents of buffer buffer-name to file identified by file-path."
+  (with-current-buffer buffer-name
     (when (= (point-max) 1)
       (newline))
     (shell-command-on-region
      (point-min) (point-max)
      (concat executable-directory "write_stdin_to_file.sh" " " ; space args
-             "\"" file-name suffix "\"")                       ; output file
+             "\"" file-path "\"")                              ; output file
      "*emacs-docs-out*" nil
      "*emacs-docs-err*" t)))
 
 (defun read-buffer-from-file (file-name)
+  "Replaces contents of buffer with file identified by file-name."
   (with-current-buffer file-name
     (let ((cur-point (point)))          ; save-excursion doesn't work with
                                         ; buffer replacement like this
@@ -30,24 +32,26 @@
       (goto-char cur-point))))
 
 (defun read-file-to-string (file-name)
+  "Return stringified file."
   (with-temp-buffer
     (insert-file-contents file-name)
     (buffer-string)))
 
 (require 'json)
 
-(defun perform-patch-from-file (patch-file suffix)
-  "Parse output of google's diff_match_patch from a file and apply it to the
-current buffer. Assumes the patch is 'correct' in that it is able to be applied
-without any errors."
-  (interactive)
-  (with-current-buffer patch-file
+(defun perform-patch-from-file (buffer-to-patch file-path)
+  "Parse output of google's diff_match_patch from file-path and apply it to
+buffer buffer-to-patch. Assumes the patch is 'correct' in that it is able to be
+applied without any errors."
+  ;; TODO: make interactive
+  (with-current-buffer buffer-to-patch
     (let ((json-object-type 'plist)
           (json-diff-struct nil)
           (cur-diff-set nil)
           (diff-vector nil))
       (setq json-diff-struct
-            (json-read-from-string (read-file-to-string (concat patch-file suffix))))
+            (json-read-from-string
+             (read-file-to-string file-path)))
       (save-excursion
         (loop
          for diff-index from (1- (length json-diff-struct)) downto 0
@@ -55,7 +59,7 @@ without any errors."
               (setq cur-diff-set (aref json-diff-struct diff-index))
               (goto-char (1+ (plist-get cur-diff-set :start1)))
               (setq diff-vector (plist-get cur-diff-set :diffs))
-              ;; simple iteration over the vector isn't working, so aref and index
+              ;; simple iteration over the vector isn't working, so aref + index
               (loop for diff-pair-index from 0 upto (1- (length diff-vector))
                     do (perform-diff-operation
                         (aref diff-vector diff-pair-index)))))))))

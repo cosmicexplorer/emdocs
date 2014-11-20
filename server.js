@@ -114,7 +114,7 @@ function openFileInEmacs(filename, callback) {
 function broadcastBuffer() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
+    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
     "error: buffer could not be saved",
@@ -135,7 +135,7 @@ function broadcastBuffer() {
 function broadcastDiff() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
+    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
     "error: buffer could not be loaded",
@@ -200,13 +200,12 @@ function performPatchFromFile(filename, suffix, callback) {
     "perform-patch-from-file", "\"" + filename + "\"", "\"" + suffix + "\""
   );
   setupEmacsSpawn(
-    emacsPerformPatch,
     "error: patch could not be performed",
     "file loaded",
     callback);
 }
 
-
+// helper function
 function setupEmacsSpawn(spawnProcess, errorText, successText, callback) {
   spawnProcess.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
@@ -226,6 +225,7 @@ function setupEmacsSpawn(spawnProcess, errorText, successText, callback) {
   });
 }
 
+// helper function
 // takes variable number of arguments
 // returns spawn object
 function spawnEmacsCommand() {
