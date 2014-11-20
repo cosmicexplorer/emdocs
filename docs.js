@@ -159,8 +159,6 @@ function broadcastDiff() {
         function(tmpError, tmpFileContents) {
           if (tmpError) {
             console.log(tmpError);
-            console.log(tmpFileContents);
-            console.log(curFileContents);
           }
           utilities.fs.readFile(
             activeFileName,
