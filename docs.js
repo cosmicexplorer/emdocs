@@ -76,6 +76,7 @@ utilities.fs.writeFile(
                             if (error) {
                               console.log(error);
                             }
+                            console.log(JSON.stringify(sentFilePatch));
                             performPatchFromFile(activeFileName);
                             console.log("diff received");
                           });
