@@ -54,31 +54,6 @@ utilities.fs.writeFile(
                   });
               }
             });
-            socket.on('file_diff', function(sentFilePatch) {
-              // if not self socket
-              if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                utilities.p2p.client.getUriOfSocket(socket)) {
-                utilities.fs.readFile(
-                  activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-                  function(error,
-                    readFileContents) {
-                    if (error) {
-                      console.log(error);
-                    }
-                    utilities.fs.writeFile(
-                      activeFileName + utilities.CLIENT_COPY_FILE_SUFFIX,
-                      utilities.diff_match_patch.patch_apply(
-                        sentFilePatch,
-                        readFileContents.toString())[0],
-                      function(error) {
-                        if (error) {
-                          console.log(error);
-                        }
-                        updateBufferInEmacs(activeFileName);
-                      });
-                  });
-              }
-            });
           },
           // server init function
           function() {
@@ -86,7 +61,6 @@ utilities.fs.writeFile(
               utilities.SERVER_HTTP_PORT);
             if ("127.0.0.1" == process.argv[3]) { // if initial server
               setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-              setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
             }
           },
           // server socket function
@@ -139,51 +113,6 @@ function broadcastBuffer() {
           p.emit('file_send', fileContents.toString());
           console.log("file broadcasted")
         });;
-    }
-  });
-}
-
-
-function broadcastDiff() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
-  emacsWriteFile.stdout.on('data', function(data) {
-    console.log("emacs stdout: " + data)
-  });
-  emacsWriteFile.stderr.on('data', function(data) {
-    console.log("emacs stderr: " + data);
-  });
-  emacsWriteFile.on('exit', function(return_code, signal) {
-    if (0 != return_code) {
-      console.log("error: buffer could not be saved.");
-    } else {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(tmpError, tmpFileContents) {
-          if (tmpError) {
-            console.log(tmpError);
-          }
-          utilities.fs.readFile(
-            activeFileName,
-            function(curError, curFileContents) {
-              if (curError) {
-                console.log(curError);
-              }
-              utilities.fs.writeFile(
-                activeFileName,
-                tmpFileContents,
-                function(error) {
-                  console.log(error);
-                  p.emit('file_diff',
-                    utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(), tmpFileContents
-                        .toString()));
-                  console.log("diff broadcasted");
-                }
-              )
-            });
-        });
     }
   });
 }
