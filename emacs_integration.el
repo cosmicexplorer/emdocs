@@ -66,8 +66,7 @@ applied without any errors."
 
 (defun perform-diff-operation (diff-pair-vector)
   "Helper function which performs the diffing operation specified by a
-two-element vector created by a part of the JSON created by google's
-diff_match_patch."
+two-element vector in a part of the JSON created by google's diff_match_patch."
   (let ((diff-op (aref diff-pair-vector 0))
         (diff-string (aref diff-pair-vector 1)))
     (cond
@@ -78,4 +77,5 @@ diff_match_patch."
      ((equal diff-op -1)
       (delete-forward-char (length diff-string)))
      (t
-      (throw 'unrecognized-diff-op t)))))
+      (throw 'unrecognized-diff-op
+             "diff_match_patch.patch_make operation not recognized")))))

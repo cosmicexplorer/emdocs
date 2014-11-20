@@ -86,9 +86,9 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
           ':' +
           utilities.SERVER_HTTP_PORT);
         if ("127.0.0.1" == process.argv[3]) { // if initial server
-          // setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+          setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
         }
+        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
       },
       // server socket function
       function(socket) {
@@ -197,7 +197,8 @@ function loadEmacsLisp(filename, callback) {
 
 function performPatchFromFile(filename, suffix, callback) {
   var emacsPerformPatch = spawnEmacsCommand(
-    "perform-patch-from-file", "\"" + filename + "\"", "\"" + suffix + "\""
+    "perform-patch-from-file", "\"" + filename + "\"",
+    "\"" + filename + suffix + "\""
   );
   setupEmacsSpawn(
     "error: patch could not be performed",
