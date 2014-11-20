@@ -1,0 +1,26 @@
+{
+  "name": "CollabEmacs",
+  "version": "0.0.1",
+  "description": "Collaborative editing of emacs buffers on a peer-to-peer network.",
+  "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
+  "main": "docs.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cosmicexplorer/CollabEmacs"
+  },
+  "keywords": [
+    "collab",
+    "emacs",
+    "collaboration",
+    "collaborative"
+  ],
+  "dependencies": {
+    "express": "4.2.x",
+    "http": "0.0.x",
+    "socket.io": "1.2.x",
+    "socket.io-client": "1.2.x",
+    "hashtable": "0.5.x"
+  },
+  "private": true,
+  "license": "GPLv3"
+}

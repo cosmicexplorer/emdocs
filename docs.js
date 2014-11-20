@@ -29,90 +29,91 @@ utilities.fs.writeFile(
         if (error) {
           console.log(error);
         }
-        openFileInEmacs(activeFileName);
-        p.start(
-          // client init function
-          function() {
-            console.log("speaking on " + utilities.os.hostname() + ':' +
-              utilities.SERVER_HTTP_PORT);
-          },
-          // client socket function
-          function(socket) {
-            // get user id, filename, and file contents; write to file
-            socket.on('connection_info', function(sentFileName) {
-              activeFileName = sentFileName;
-            });
-            socket.on('file_send', function(sentFileContents) {
-              // if not self socket
-              if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                utilities.p2p.client.getUriOfSocket(socket)) {
-                utilities.fs.writeFile(
-                  activeFileName,
-                  sentFileContents.toString(),
-                  function(error) {
-                    if (error) {
-                      console.log(error);
-                    }
-                    updateBufferInEmacs(activeFileName);
-                    console.log("file received");
-                  });
-              }
-            });
-            socket.on('file_diff', function(sentFilePatch) {
-              if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                utilities.p2p.client.getUriOfSocket(socket)) {
-                utilities.fs.readFile(
-                  activeFileName,
-                  function(error, readFileContents) {
+        loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
+          openFileInEmacs(activeFileName, function() {
+            p.start(
+              // client init function
+              function() {
+                console.log("speaking on " + utilities.os.hostname() +
+                  ':' +
+                  utilities.SERVER_HTTP_PORT);
+              },
+              // client socket function
+              function(socket) {
+                // get user id, filename, and file contents; write to file
+                socket.on('connection_info', function(
+                  sentFileName) {
+                  activeFileName = sentFileName;
+                });
+                socket.on('file_send', function(sentFileContents) {
+                  // if not self socket
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
                     utilities.fs.writeFile(
                       activeFileName,
-                      utilities.diff_match_patch.patch_apply(
-                        sentFilePatch,
-                        readFileContents.toString()
-                      )[0], // get patched text
+                      sentFileContents.toString(),
                       function(error) {
                         if (error) {
                           console.log(error);
                         }
                         updateBufferInEmacs(activeFileName);
-                        console.log("diff received");
+                        console.log("file received");
                       });
-                  });
-              }
-            });
-          },
-          // server init function
-          function() {
-            console.log("listening on " + utilities.os.hostname() + ':' +
-              utilities.SERVER_HTTP_PORT);
-            if ("127.0.0.1" == process.argv[3]) { // if initial server
-              setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-              setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-            }
-          },
-          // server socket function
-          function(socket) {
-            socket.emit('connection_info', activeFileName);
+                  }
+                });
+                socket.on('file_diff', function(sentFilePatch) {
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
+                    utilities.fs.readFile(
+                      activeFileName,
+                      function(error, readFileContents) {
+                        utilities.fs.writeFile(
+                          activeFileName,
+                          JSON.stringify(sentFilePatch),
+                          function(error) {
+                            if (error) {
+                              console.log(error);
+                            }
+                            updateBufferInEmacs(
+                              activeFileName);
+                            console.log("diff received");
+                          });
+                      });
+                  }
+                });
+              },
+              // server init function
+              function() {
+                console.log("listening on " + utilities.os.hostname() +
+                  ':' +
+                  utilities.SERVER_HTTP_PORT);
+                if ("127.0.0.1" == process.argv[3]) { // if initial server
+                  setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+                  setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+                }
+              },
+              // server socket function
+              function(socket) {
+                socket.emit('connection_info', activeFileName);
+              });
           });
+        });
       });
   });
 
 // requires emacs to be open and server to be on
-function openFileInEmacs(filename) {
+function openFileInEmacs(filename, callback) {
   var emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
-  emacsOpenFile.stdout.on('data', function(data) {
-    console.log("emacs stdout: " + data);
-  });
-  emacsOpenFile.stderr.on('data', function(data) {
-    console.log("emacs stderr: " + data);
-  });
-  emacsOpenFile.on('exit', function(return_code, signal) {
-    if (return_code != 0) {
-      console.log("error: file could not be opened.");
-    } else {
-      console.log("FILE OPENED :DDDDDDDDDDDDDDDDDD");
-    }
-  });
+  setupEmacsSpawn(
+    emacsOpenFile,
+    "error: file could not be loaded",
+    "file loaded",
+    function() {
+      console.log("FILE OPENED :DDDDDDD");
+      callback();
+    });
 }
 
 
@@ -120,17 +121,11 @@ function broadcastBuffer() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
     "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
-  emacsWriteFile.stdout.on('data', function(data) {
-    console.log("emacs stdout: " + data);
-  });
-  emacsWriteFile.stderr.on('data', function(data) {
-    console.log("emacs stderr: " + data);
-  });
-  emacsWriteFile.on('exit', function(
-    return_code, signal) {
-    if (0 != return_code) {
-      console.log("error: buffer could not be saved.");
-    } else {
+  setupEmacsSpawn(
+    emacsWriteFile,
+    "error: buffer could not be saved",
+    "file broadcasted",
+    function() {
       utilities.fs.readFile(
         activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(error, fileContents) {
@@ -138,10 +133,8 @@ function broadcastBuffer() {
             console.log(error);
           }
           p.emit('file_send', fileContents.toString());
-          console.log("file broadcasted")
-        });;
-    }
-  });
+        });
+    });
 }
 
 
@@ -149,16 +142,11 @@ function broadcastDiff() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
     "\"" + utilities.TMP_FILENAME_SUFFIX + "\"");
-  emacsWriteFile.stdout.on('data', function(data) {
-    console.log("emacs stdout: " + data)
-  });
-  emacsWriteFile.stderr.on('data', function(data) {
-    console.log("emacs stderr: " + data);
-  });
-  emacsWriteFile.on('exit', function(return_code, signal) {
-    if (0 != return_code) {
-      console.log("error: buffer could not be saved.");
-    } else {
+  setupEmacsSpawn(
+    emacsWriteFile,
+    "error: buffer could not be loaded",
+    "diff broadcasted",
+    function() {
       utilities.fs.readFile(
         activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(tmpError, tmpFileContents) {
@@ -175,36 +163,72 @@ function broadcastDiff() {
                 activeFileName,
                 tmpFileContents,
                 function(error) {
-                  if (error){
+                  if (error) {
                     console.log(error);
                   }
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(), tmpFileContents.toString()));
-                  console.log("diff broadcasted");
+                      curFileContents.toString(), tmpFileContents
+                      .toString()));
                 }
-              )
+              );
             });
         });
-    }
-  });
+    });
 }
 
 
-function updateBufferInEmacs(filename) {
+function updateBufferInEmacs(filename, callback) {
   var emacsReadFile = spawnEmacsCommand(
     "read-buffer-from-file", "\"" + filename + "\"");
-  emacsReadFile.stdout.on('data', function(data) {
+  setupEmacsSpawn(
+    emacsReadFile,
+    "error: file could not be read",
+    "file read",
+    callback);
+}
+
+
+function loadEmacsLisp(filename, callback) {
+  var emacsLoadFile = spawnEmacsCommand(
+    "load-file", "\"" + filename + "\""
+  );
+  setupEmacsSpawn(
+    emacsLoadFile,
+    "error: file could not be loaded",
+    "file loaded",
+    callback);
+}
+
+
+function performPatchFromFile(filename, callback) {
+  var emacsPerformPatch = spawnEmacsCommand(
+    "perform-patch-from-file", "\"" + filename + "\""
+  );
+  setupEmacsSpawn(
+    emacsPerformPatch,
+    "error: file could not be loaded",
+    "file loaded",
+    callback);
+}
+
+
+function setupEmacsSpawn(spawnProcess, errorText, successText, callback) {
+  spawnProcess.stdout.on('data', function(data) {
     console.log("emacs stdout: " + data);
   });
-  emacsReadFile.stderr.on('data', function(data) {
+  spawnProcess.stderr.on('data', function(data) {
     console.log("emacs stderr: " + data);
   });
-  emacsReadFile.on('exit', function(return_code, signal) {
+  spawnProcess.on('exit', function(return_code, signal) {
     if (return_code != 0) {
-      console.log("error: file could not be read.");
+      console.log(errorText);
+    } else {
+      console.log(successText);
     }
-    console.log("file read");
+    if ("function" == typeof(callback)) {
+      callback();
+    }
   });
 }
 

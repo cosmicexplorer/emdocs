@@ -10,6 +10,7 @@ const DIFF_SYNC_TIME = 1000; // in milliseconds
 const FILE_SYNC_TIME = 2000;
 const TMP_FILENAME_SUFFIX = ".tmp";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY";
+const LISP_FILE_PATH = "./docs.el";
 
 // split into declarations and exports because variables need to be declared and
 // initialized in sequence, and exports doesn't do that
@@ -24,4 +25,5 @@ module.exports = {
   FILE_SYNC_TIME: FILE_SYNC_TIME,
   TMP_FILENAME_SUFFIX: TMP_FILENAME_SUFFIX,
   CLIENT_COPY_FILE_SUFFIX: CLIENT_COPY_FILE_SUFFIX,
+  LISP_FILE_PATH: LISP_FILE_PATH
 }
