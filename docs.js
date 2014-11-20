@@ -76,8 +76,7 @@ utilities.fs.writeFile(
                             if (error) {
                               console.log(error);
                             }
-                            updateBufferInEmacs(
-                              activeFileName);
+                            performPatchFromFile(activeFileName);
                             console.log("diff received");
                           });
                       });
