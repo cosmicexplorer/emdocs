@@ -176,7 +176,7 @@ function broadcastDiff() {
                   console.log(error);
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
-                      curFileContents, tmpFileContents));
+                      curFileContents.toString(), tmpFileContents.toString()));
                 }
               )
             });
