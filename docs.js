@@ -68,7 +68,7 @@ utilities.fs.writeFile(
                       utilities.diff_match_patch.patch_apply(
                         sentFilePatch,
                         readFileContents
-                      )[0],     // get patched text
+                      )[0], // get patched text
                       function(error) {
                         if (error) {
                           console.log(error);
@@ -85,6 +85,7 @@ utilities.fs.writeFile(
               utilities.SERVER_HTTP_PORT);
             if ("127.0.0.1" == process.argv[3]) { // if initial server
               setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+              setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
             }
           },
           // server socket function
