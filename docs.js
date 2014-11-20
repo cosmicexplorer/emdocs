@@ -54,6 +54,7 @@ utilities.fs.writeFile(
                       console.log(error);
                     }
                     updateBufferInEmacs(activeFileName);
+                    console.log("file received");
                   });
               }
             });
@@ -67,13 +68,14 @@ utilities.fs.writeFile(
                       activeFileName,
                       utilities.diff_match_patch.patch_apply(
                         sentFilePatch,
-                        readFileContents
+                        readFileContents.toString()
                       )[0], // get patched text
                       function(error) {
                         if (error) {
                           console.log(error);
                         }
                         updateBufferInEmacs(activeFileName);
+                        console.log("diff received");
                       });
                   });
               }
