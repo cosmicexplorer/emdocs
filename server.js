@@ -168,7 +168,7 @@ function broadcastBuffer() {
 function writeBufferToFile(callback) {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+    "\"" + activeFileName + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
     "error: buffer could not be saved",
