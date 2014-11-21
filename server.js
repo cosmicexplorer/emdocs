@@ -25,8 +25,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
     p.start(
       // client init function
       function() {
-        console.log("speaking on " + utilities.os.hostname() +
-          ':' +
+        console.log("speaking on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
       },
 
