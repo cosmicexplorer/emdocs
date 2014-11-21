@@ -10,8 +10,6 @@
 (defun send-buffer-to-file (buffer-name file-path)
   "Sends contents of buffer buffer-name to file identified by file-path."
   (with-current-buffer buffer-name
-    (when (= (point-max) 1)
-      (newline))
     (shell-command-on-region
      (point-min) (point-max)
      (concat executable-directory "write_stdin_to_file.sh" " " ; space args
