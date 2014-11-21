@@ -13,12 +13,23 @@ var otherServerUri = "http://" + process.argv[3] + ':' +
 
 var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 
+// protect against concurrent access
+var activeFileLock = utilities.locks.createReadWriteLock();
+var tmpFileLock = utilities.locks.createReadWriteLock();
+var diffFileLock = utilities.locks.createReadWriteLock();
+
 // TODO: make proxy solution for network with firewall which blocks all ports
 
-utilities.fs.writeFileSync(activeFileName, fileContents);
-utilities.fs.writeFileSync(
-  activeFileName + utilities.TMP_FILENAME_SUFFIX,
-  tmpFileContents);
+activeFileLock.writeLock(function() {
+  utilities.fs.writeFileSync(activeFileName, fileContents);
+  activeFileLock.unlock();
+});
+tmpFileLock.writeLock(function() {
+  utilities.fs.writeFileSync(
+    activeFileName + utilities.TMP_FILENAME_SUFFIX,
+    tmpFileContents);
+  tmpFileLock.unlock();
+});
 
 loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
   openFileInEmacs(activeFileName, function() {
@@ -37,79 +48,104 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
           activeFileName = connectionInfo.activeFileName;
           fileContents = connectionInfo.fileContents;
           tmpFileContents = fileContents;
-          utilities.fs.writeFile(
-            activeFileName,
-            fileContents,
-            function(error) {
-              if (error) {
-                console.log(error);
-              }
-              updateBufferInEmacs(activeFileName);
-              console.log("connection info received");
-
-              socket.on('file_send', function(sentFileBuffer) {
-                // if not self socket
-                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                  utilities.p2p.client.getUriOfSocket(
-                    socket)) {
-                  writeBufferToFile(function() {
-                    utilities.fs.readFile(
-                      activeFileName,
-                      function(error,
-                        readFileContents) {
-                        if (error) {
-                          console.log(error);
-                        }
-                        var patch =
-                          JSON.stringify(utilities.diff_match_patch
-                            .patch_make(
-                              readFileContents.toString(),
-                              sentFileBuffer.toString()
-                            ));
-                        console.log(patch);
-                        utilities.fs.writeFile(
-                          activeFileName +
-                          utilities.DIFF_FILENAME_SUFFIX,
-                          patch,
-                          function(error) {
-                            performPatchFromFile(
-                              activeFileName,
-                              activeFileName +
-                              utilities.DIFF_FILENAME_SUFFIX
-                            );
-                            console.log(
-                              "file received");
-                          });
-                      });
-                  });
+          activeFileLock.writeLock(function() {
+            utilities.fs.writeFile(
+              activeFileName,
+              fileContents,
+              function(error) {
+                activeFileLock.unlock();
+                if (error) {
+                  console.log(error);
                 }
-              });
-
-              socket.on('file_diff', function(sentFilePatch) {
-                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                  utilities.p2p.client.getUriOfSocket(
-                    socket)) {
-                  utilities.fs.writeFile(
-                    activeFileName +
-                    utilities.DIFF_FILENAME_SUFFIX,
-                    JSON.stringify(sentFilePatch),
-                    function(error) {
-                      if (error) {
-                        console.log(error);
-                      }
-                      console.log(
-                        JSON.stringify(
-                          sentFilePatch));
-                      performPatchFromFile(
-                        activeFileName,
-                        activeFileName +
-                        utilities.DIFF_FILENAME_SUFFIX
-                      );
-                      console.log("diff received");
+                activeFileLock.readLock(function() {
+                  updateBufferInEmacs(activeFileName,
+                    function() {
+                      activeFileLock.unlock();
                     });
-                }
+                });
+                console.log("connection info received");
+
+                socket.on('file_send', function(
+                  sentFileBuffer) {
+                  // if not self socket
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
+                    writeBufferToFile(function() {
+                      utilities.fs.readFile(
+                        activeFileName,
+                        function(error,
+                          readFileContents) {
+                          if (error) {
+                            console.log(error);
+                          }
+                          utilities.fs.writeFile(
+                            activeFileName +
+                            utilities.DIFF_FILENAME_SUFFIX,
+                            JSON.stringify(
+                              utilities.diff_match_patch
+                              .patch_make(
+                                readFileContents
+                                .toString(),
+                                sentFileBuffer.toString()
+                              )),
+                            function(error) {
+                              performPatchFromFile
+                                (
+                                  activeFileName,
+                                  activeFileName +
+                                  utilities.DIFF_FILENAME_SUFFIX
+                                );
+                              console.log(
+                                "file received"
+                              );
+                            }
+                          );
+                        });
+                    });
+                  }
+                });
+
+                socket.on('file_diff', function(
+                  sentFilePatch) {
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
+                    diffFileLock.writeLock(function() {
+                      utilities.fs.writeFile(
+                        activeFileName +
+                        utilities.DIFF_FILENAME_SUFFIX,
+                        JSON.stringify(
+                          sentFilePatch),
+                        function(error) {
+                          diffFileLock.unlock();
+                          if (error) {
+                            console.log(error);
+                          }
+                          console.log(
+                            JSON.stringify(
+                              sentFilePatch));
+                          diffFileLock.readLock(
+                            function() {
+                              performPatchFromFile
+                                (
+                                  activeFileName,
+                                  activeFileName +
+                                  utilities.DIFF_FILENAME_SUFFIX,
+                                  function() {
+                                    diffFileLock
+                                      .unlock();
+                                  }
+                                );
+                            });
+                          console.log(
+                            "diff received");
+                        });
+                    });
+                  }
+                });
               });
-            });
+          });
         });
       },
 
@@ -117,10 +153,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
       function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
-        // if (process.argv[3] == "127.0.0.1") {
+        if (process.argv[3] == "127.0.0.1") {
           setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
           setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-        // }
+        }
       },
 
       // server socket function
@@ -147,24 +183,33 @@ function openFileInEmacs(filename, callback) {
 }
 
 
-function broadcastBuffer() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be saved",
-    "file broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(error, fileContents) {
-          if (error) {
-            console.log(error);
-          }
-          p.emit('file_send', fileContents.toString());
+function broadcastBuffer(callback) {
+  tmpFileLock.writeLock(function() {
+    var emacsWriteFile = spawnEmacsCommand(
+      "send-buffer-to-file", "\"" + activeFileName + "\"",
+      "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+    setupEmacsSpawn(
+      emacsWriteFile,
+      "error: buffer could not be saved",
+      "file broadcasted",
+      function() {
+        tmpFileLock.unlock();
+        tmpFileLock.readLock(function() {
+          utilities.fs.readFile(
+            activeFileName + utilities.TMP_FILENAME_SUFFIX,
+            function(error, fileContents) {
+              tmpFileLock.unlock();
+              if (error) {
+                console.log(error);
+              }
+              p.emit('file_send', fileContents.toString());
+              if ("function" == typeof(callback)) {
+                callback();
+              }
+            });
         });
-    });
+      });
+  });
 }
 
 
@@ -191,7 +236,7 @@ function writeBufferToFile(callback) {
 }
 
 
-function broadcastDiff() {
+function broadcastDiff(callback) {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
     "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
@@ -210,6 +255,7 @@ function broadcastDiff() {
           utilities.fs.readFile(
             activeFileName,
             function(curError, curFileContents) {
+              activeFileLock.unlock();
               if (curError) {
                 console.log(curError);
               }
@@ -221,12 +267,16 @@ function broadcastDiff() {
                     console.log(error);
                   }
                   p.emit('file_diff',
-                    utilities.diff_match_patch.patch_make(
+                    utilities.diff_match_patch
+                    .patch_make(
                       curFileContents.toString(),
-                      tmpFileContents.toString()));
-                }
-              );
+                      tmpFileContents.toString()
+                    ));
+                });
             });
+          if ("function" == typeof(callback)) {
+            callback();
+          }
         });
     });
 }

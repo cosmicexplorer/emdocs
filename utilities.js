@@ -4,6 +4,7 @@ var os = require('os');
 var spawn = require('child_process').spawn
 var diff_match_patch = require('./diff_match_patch');
 var p2p = require('./p2p');
+var locks = require('locks');
 // constants
 const SERVER_HTTP_PORT = 8080;
 const DIFF_SYNC_TIME = 1000; // in milliseconds
@@ -21,6 +22,7 @@ module.exports = {
   spawn: spawn,
   diff_match_patch: diff_match_patch,
   p2p: p2p,
+  locks: locks,
   SERVER_HTTP_PORT: SERVER_HTTP_PORT,
   DIFF_SYNC_TIME: DIFF_SYNC_TIME,
   FILE_SYNC_TIME: FILE_SYNC_TIME,
