@@ -53,7 +53,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
               activeFileName,
               fileContents,
               function(error) {
-                activeFileName.unlock();
+                activeFileLock.unlock();
                 if (error) {
                   console.log(error);
                 }
