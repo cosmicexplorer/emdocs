@@ -64,6 +64,7 @@ applied without any errors."
                     do (perform-diff-operation
                         (aref diff-vector diff-pair-index)))))))))
 
+;;; TODO: make more robust by allowing for non-matches with some best-guesses
 (defun perform-diff-operation (diff-pair-vector)
   "Helper function which performs the diffing operation specified by a
 two-element vector in a part of the JSON created by google's diff_match_patch."

@@ -48,21 +48,39 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
               updateBufferInEmacs(activeFileName);
               console.log("connection info received");
 
-              socket.on('file_send', function(sentFileContents) {
+              socket.on('file_send', function(sentFileBuffer) {
                 // if not self socket
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  utilities.fs.writeFile(
-                    activeFileName,
-                    sentFileContents.toString(),
-                    function(error) {
-                      if (error) {
-                        console.log(error);
-                      }
-                      updateBufferInEmacs(activeFileName);
-                      console.log("file received");
-                    });
+                  writeBufferToFile(function() {
+                    utilities.fs.readFile(
+                      activeFileName,
+                      function(error,
+                        readFileContents) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        utilities.fs.writeFile(
+                          activeFileName +
+                          utilities.DIFF_FILENAME_SUFFIX,
+                          JSON.stringify(utilities.diff_match_patch
+                            .patch_make(
+                              readFileContents,
+                              sentFileBuffer.toString()
+                            )),
+                          function(error) {
+                            performPatchFromFile(
+                              activeFileName,
+                              activeFileName +
+                              utilities.DIFF_FILENAME_SUFFIX
+                            );
+                            console.log(
+                              "file received");
+                          }
+                        );
+                      });
+                  });
                 }
               });
 
@@ -70,27 +88,23 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  utilities.fs.readFile(
-                    activeFileName,
-                    function(error, readFileContents) {
-                      utilities.fs.writeFile(
+                  utilities.fs.writeFile(
+                    activeFileName +
+                    utilities.DIFF_FILENAME_SUFFIX,
+                    JSON.stringify(sentFilePatch),
+                    function(error) {
+                      if (error) {
+                        console.log(error);
+                      }
+                      console.log(
+                        JSON.stringify(
+                          sentFilePatch));
+                      performPatchFromFile(
+                        activeFileName,
                         activeFileName +
-                        utilities.DIFF_FILENAME_SUFFIX,
-                        JSON.stringify(sentFilePatch),
-                        function(error) {
-                          if (error) {
-                            console.log(error);
-                          }
-                          console.log(
-                            JSON.stringify(
-                              sentFilePatch));
-                          performPatchFromFile(
-                            activeFileName,
-                            activeFileName +
-                            utilities.DIFF_FILENAME_SUFFIX
-                          );
-                          console.log("diff received");
-                        });
+                        utilities.DIFF_FILENAME_SUFFIX
+                      );
+                      console.log("diff received");
                     });
                 }
               });
@@ -146,6 +160,29 @@ function broadcastBuffer() {
             console.log(error);
           }
           p.emit('file_send', fileContents.toString());
+        });
+    });
+}
+
+
+function writeBufferToFile(callback) {
+  var emacsWriteFile = spawnEmacsCommand(
+    "send-buffer-to-file", "\"" + activeFileName + "\"",
+    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+  setupEmacsSpawn(
+    emacsWriteFile,
+    "error: buffer could not be saved",
+    "file broadcasted",
+    function() {
+      utilities.fs.readFile(
+        activeFileName + utilities.TMP_FILENAME_SUFFIX,
+        function(error, fileContents) {
+          if (error) {
+            console.log(error);
+          }
+          if ("function" == typeof(callback)) {
+            callback();
+          }
         });
     });
 }

@@ -7,7 +7,7 @@ var p2p = require('./p2p');
 // constants
 const SERVER_HTTP_PORT = 8080;
 const DIFF_SYNC_TIME = 1000; // in milliseconds
-const FILE_SYNC_TIME = 2000;
+const FILE_SYNC_TIME = 10000;
 const TMP_FILENAME_SUFFIX = ".tmp";
 const DIFF_FILENAME_SUFFIX = ".diff";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY";
