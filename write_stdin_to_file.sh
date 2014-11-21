@@ -1,7 +1,11 @@
 #!/bin/bash
 
-rm "$1"                         # destructo
+if [ -f "$1" ]; then
+    rm "$1"                         # destructo
+fi
 
-while read in; do
+while read -r in; do
     echo "$in" >> "$1"
 done
+
+echo -e "\n" >> "$1";
