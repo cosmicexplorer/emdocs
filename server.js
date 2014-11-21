@@ -202,6 +202,7 @@ function broadcastDiff() {
         function(tmpError, tmpFileContents) {
           if (tmpError) {
             console.log(tmpError);
+            tmpFileContents = "";
           }
           utilities.fs.readFile(
             activeFileName,
@@ -215,7 +216,6 @@ function broadcastDiff() {
                 function(error) {
                   if (error) {
                     console.log(error);
-                    tmpFileContents = "";
                   }
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
