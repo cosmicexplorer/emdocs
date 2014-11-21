@@ -65,73 +65,37 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 });
                 console.log("connection info received");
 
-                socket.on('file_send', function(
-                  sentFileBuffer) {
-                  // if not self socket
-                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                    utilities.p2p.client.getUriOfSocket(
-                      socket)) {
-                    activeFileLock.writeLock(function() {
-                      writeBufferToFile(function() {
-                        activeFileLock.unlock();
-                        activeFileLock.readLock(
-                          function() {
-                            utilities.fs.readFile(
+              socket.on('file_send', function(sentFileBuffer) {
+                // if not self socket
+                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                  utilities.p2p.client.getUriOfSocket(
+                    socket)) {
+                  writeBufferToFile(function() {
+                    utilities.fs.readFile(
+                      activeFileName,
+                      function(error,
+                        readFileContents) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        utilities.fs.writeFile(
+                          activeFileName +
+                          utilities.DIFF_FILENAME_SUFFIX,
+                          JSON.stringify(utilities.diff_match_patch
+                            .patch_make(
+                              readFileContents,
+                              sentFileBuffer.toString()
+                            )),
+                          function(error) {
+                            performPatchFromFile(
                               activeFileName,
-                              function(
-                                error,
-                                readFileContents
-                              ) {
-                                activeFileLock
-                                  .unlock();
-                                if (error) {
-                                  console.log(
-                                    error
-                                  );
-                                }
-                                var patch =
-                                  JSON.stringify(
-                                    utilities
-                                    .diff_match_patch
-                                    .patch_make(
-                                      readFileContents
-                                      .toString(),
-                                      sentFileBuffer
-                                      .toString()
-                                    ));
-                                console.log(
-                                  patch);
-                                diffFileLock
-                                  .writeLock(
-                                    function() {
-                                      utilities
-                                        .fs
-                                        .writeFile(
-                                          activeFileName +
-                                          utilities
-                                          .DIFF_FILENAME_SUFFIX,
-                                          patch,
-                                          function(
-                                            error
-                                          ) {
-                                            diffFileLock
-                                              .unlock();
-                                            performPatchFromFile
-                                              (
-                                                activeFileName,
-                                                activeFileName +
-                                                utilities
-                                                .DIFF_FILENAME_SUFFIX
-                                              );
-                                            console
-                                              .log(
-                                                "file received"
-                                              );
-                                          }
-                                        );
-                                    });
-                              });
-                          });
+                              activeFileName +
+                              utilities.DIFF_FILENAME_SUFFIX
+                            );
+                            console.log(
+                              "file received");
+                          }
+                        );
                       });
                     });
                   }
@@ -184,10 +148,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
       function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
-        // if (process.argv[3] == "127.0.0.1") {
-        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-        setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-        // }
+        if (process.argv[3] == "127.0.0.1") {
+          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+          setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+        }
       },
 
       // server socket function
