@@ -12,7 +12,7 @@
   (with-current-buffer buffer-name
     (shell-command-on-region
      (point-min) (point-max)
-     (concat executable-directory "write_stdin_to_file.sh" " " ; space args
+     (concat "./" "write_stdin_to_file.sh" " " ; space args
              "\"" file-path "\"")                              ; output file
      "*emacs-docs-out*" nil
      "*emacs-docs-err*" t)))
