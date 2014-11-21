@@ -215,9 +215,7 @@ function broadcastDiff() {
                 function(error) {
                   if (error) {
                     console.log(error);
-                    if (error.errno == 34){
-                      tmpFileContents = "";
-                    }
+                    tmpFileContents = "";
                   }
                   p.emit('file_diff',
                     utilities.diff_match_patch.patch_make(
