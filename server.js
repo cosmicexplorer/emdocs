@@ -65,43 +65,38 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 });
                 console.log("connection info received");
 
-                socket.on('file_send', function(
-                  sentFileBuffer) {
-                  // if not self socket
-                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                    utilities.p2p.client.getUriOfSocket(
-                      socket)) {
-                    writeBufferToFile(function() {
-                      utilities.fs.readFile(
-                        activeFileName,
-                        function(error,
-                          readFileContents) {
-                          if (error) {
-                            console.log(error);
+              socket.on('file_send', function(sentFileBuffer) {
+                // if not self socket
+                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                  utilities.p2p.client.getUriOfSocket(
+                    socket)) {
+                  writeBufferToFile(function() {
+                    utilities.fs.readFile(
+                      activeFileName,
+                      function(error,
+                        readFileContents) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        utilities.fs.writeFile(
+                          activeFileName +
+                          utilities.DIFF_FILENAME_SUFFIX,
+                          JSON.stringify(utilities.diff_match_patch
+                            .patch_make(
+                              readFileContents,
+                              sentFileBuffer.toString()
+                            )),
+                          function(error) {
+                            performPatchFromFile(
+                              activeFileName,
+                              activeFileName +
+                              utilities.DIFF_FILENAME_SUFFIX
+                            );
+                            console.log(
+                              "file received");
                           }
-                          utilities.fs.writeFile(
-                            activeFileName +
-                            utilities.DIFF_FILENAME_SUFFIX,
-                            JSON.stringify(
-                              utilities.diff_match_patch
-                              .patch_make(
-                                readFileContents
-                                .toString(),
-                                sentFileBuffer.toString()
-                              )),
-                            function(error) {
-                              performPatchFromFile
-                                (
-                                  activeFileName,
-                                  activeFileName +
-                                  utilities.DIFF_FILENAME_SUFFIX
-                                );
-                              console.log(
-                                "file received"
-                              );
-                            }
-                          );
-                        });
+                        );
+                      });
                     });
                   }
                 });
@@ -237,6 +232,7 @@ function writeBufferToFile(callback) {
 
 
 function broadcastDiff(callback) {
+<<<<<<< HEAD
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
     "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
@@ -273,12 +269,64 @@ function broadcastDiff(callback) {
                       tmpFileContents.toString()
                     ));
                 });
+=======
+  tmpFileLock.writeLock(function() {
+    var emacsWriteFile = spawnEmacsCommand(
+      "send-buffer-to-file", "\"" + activeFileName + "\"",
+      "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+    setupEmacsSpawn(
+      emacsWriteFile,
+      "error: buffer could not be loaded",
+      "diff broadcasted",
+      function() {
+        tmpFileLock.unlock();
+        tmpFileLock.readLock(function() {
+          utilities.fs.readFile(
+            activeFileName + utilities.TMP_FILENAME_SUFFIX,
+            function(tmpError, tmpFileContents) {
+              tmpFileLock.unlock();
+              if (tmpError) {
+                console.log(tmpError);
+                tmpFileContents = "";
+              }
+              activeFileLock.readLock(function() {
+                utilities.fs.readFile(
+                  activeFileName,
+                  function(curError, curFileContents) {
+                    activeFileLock.unlock();
+                    if (curError) {
+                      console.log(curError);
+                    }
+                    activeFileLock.writeLock(function() {
+                      utilities.fs.writeFile(
+                        activeFileName,
+                        tmpFileContents,
+                        function(error) {
+                          activeFileLock.unlock();
+                          if (error) {
+                            console.log(error);
+                          }
+                          p.emit('file_diff',
+                            utilities.diff_match_patch
+                            .patch_make(
+                              curFileContents.toString(),
+                              tmpFileContents.toString()
+                            ));
+                        });
+                    });
+                  });
+              });
+              if ("function" == typeof(callback)) {
+                callback();
+              }
+>>>>>>> 93751240edd95708821d07787fab122680d0f5f3
             });
           if ("function" == typeof(callback)) {
             callback();
           }
         });
-    });
+      });
+  });
 }
 
 
