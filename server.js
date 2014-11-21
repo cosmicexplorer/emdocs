@@ -60,14 +60,17 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                         if (error) {
                           console.log(error);
                         }
+                        var patch =
+                          JSON.stringify(utilities.diff_match_patch
+                            .patch_make(
+                              readFileContents.toString(),
+                              sentFileBuffer.toString()
+                            ));
+                        console.log(patch);
                         utilities.fs.writeFile(
                           activeFileName +
                           utilities.DIFF_FILENAME_SUFFIX,
-                          JSON.stringify(utilities.diff_match_patch
-                            .patch_make(
-                              readFileContents,
-                              sentFileBuffer.toString()
-                            )),
+                          patch,
                           function(error) {
                             performPatchFromFile(
                               activeFileName,
@@ -76,8 +79,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                             );
                             console.log(
                               "file received");
-                          }
-                        );
+                          });
                       });
                   });
                 }
@@ -115,10 +117,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
       function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
-        if (process.argv[3] == "127.0.0.1") {
+        // if (process.argv[3] == "127.0.0.1") {
           setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
           setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-        }
+        // }
       },
 
       // server socket function
