@@ -232,44 +232,6 @@ function writeBufferToFile(callback) {
 
 
 function broadcastDiff(callback) {
-<<<<<<< HEAD
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be loaded",
-    "diff broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(tmpError, tmpFileContents) {
-          if (tmpError) {
-            console.log(tmpError);
-            tmpFileContents = "";
-          }
-          utilities.fs.readFile(
-            activeFileName,
-            function(curError, curFileContents) {
-              activeFileLock.unlock();
-              if (curError) {
-                console.log(curError);
-              }
-              utilities.fs.writeFile(
-                activeFileName,
-                tmpFileContents,
-                function(error) {
-                  if (error) {
-                    console.log(error);
-                  }
-                  p.emit('file_diff',
-                    utilities.diff_match_patch
-                    .patch_make(
-                      curFileContents.toString(),
-                      tmpFileContents.toString()
-                    ));
-                });
-=======
   tmpFileLock.writeLock(function() {
     var emacsWriteFile = spawnEmacsCommand(
       "send-buffer-to-file", "\"" + activeFileName + "\"",
@@ -319,7 +281,6 @@ function broadcastDiff(callback) {
               if ("function" == typeof(callback)) {
                 callback();
               }
->>>>>>> 93751240edd95708821d07787fab122680d0f5f3
             });
           if ("function" == typeof(callback)) {
             callback();
