@@ -204,13 +204,18 @@ function broadcastDiff() {
         function(tmpError, tmpFileContents) {
           if (tmpError) {
             console.log(tmpError);
-            tmpFileContents = "";
+            if (34 == tmpError.errno && 'ENOENT' == tmpError.code) {
+              tmpFileContents = "";
+            }
           }
           utilities.fs.readFile(
             activeFileName,
             function(curError, curFileContents) {
               if (curError) {
                 console.log(curError);
+                if (34 == curError.errno && 'ENOENT' == curError.code) {
+                  curFileContents = "";
+                }
               }
               utilities.fs.writeFile(
                 activeFileName,
