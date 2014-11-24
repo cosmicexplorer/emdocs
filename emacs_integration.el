@@ -5,6 +5,7 @@
 
 ;; (perform-patch-from-file "emacs_integration.el" "test_node_output")
 
+;;; gives access to shell-command-minus-message function
 (load-file "./shell-command-minus-message.el")
 
 (defconst executable-directory "~/projects/emdocs/")
@@ -16,8 +17,8 @@
      (point-min) (point-max)
      (concat executable-directory "write_stdin_to_file.sh" " " ; space args
              "\"" file-path "\"")                              ; output file
-     "*emacs-docs-out*" nil
-     "*emacs-docs-err*" t)))
+     "*emdocs-out*" nil
+     "*emdocs-err*" t)))
 
 (defun read-buffer-from-file (file-name)
   "Replaces contents of buffer with file identified by file-name."
@@ -28,7 +29,7 @@
        (point-min) (point-max)
        (concat "cat " file-name)
        t t                             ; output and replace current buffer
-       "*emacs-docs-err*" t)
+       "*emdocs-err*" t)
       (goto-char cur-point))))
 
 (defun read-file-to-string (file-name)

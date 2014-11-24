@@ -52,36 +52,17 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  writeBufferToFile(function() {
-                    utilities.fs.readFile(
-                      activeFileName,
-                      function(error,
-                        readFileContents) {
-                        if (error) {
-                         console.log(error);
-                        }
-                        var patch =
-                          JSON.stringify(utilities.diff_match_patch
-                            .patch_make(
-                              readFileContents.toString(),
-                              sentFileBuffer.toString()
-                            ));
-                        console.log(patch);
-                        utilities.fs.writeFile(
-                          activeFileName +
-                          utilities.DIFF_FILENAME_SUFFIX,
-                          patch,
-                          function(error) {
-                            performPatchFromFile(
-                              activeFileName,
-                              activeFileName +
-                              utilities.DIFF_FILENAME_SUFFIX
-                            );
-                            console.log(
-                              "file received");
-                          });
-                      });
-                  });
+                  utilities.fs.writeFile(
+                    activeFileName + utilities.TMP_FILENAME_SUFFIX,
+                    sentFileBuffer,
+                    function(error) {
+                      if (error) {
+                        console.log(error);
+                      }
+                      updateBufferInEmacs(activeFileName +
+                        utilities.TMP_FILENAME_SUFFIX);
+                      console.log("file received");
+                    });
                 }
               });
 
@@ -118,8 +99,8 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
         // if (process.argv[3] == "127.0.0.1") {
-          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-          setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+        setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
         // }
       },
 
