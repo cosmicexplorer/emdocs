@@ -84,6 +84,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                       activeFileName,
                       function(error, readFileBuffer) {
                         if (error) {
+                          if (34 == error.errno &&
+                              'ENOENT' == error.code) {
+                            readFileBuffer = "";
+                          }
                           console.log(error);
                         }
                         var patchResult = utilities.diff_match_patch
