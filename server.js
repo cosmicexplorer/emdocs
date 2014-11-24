@@ -93,11 +93,14 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                             }
                             console.log(error);
                           }
+                          var readFileContents =
+                            readFileBuffer.toString();
+                          readFileContents += "\n";
                           console.log(sentFilePatch);
                           var patchResult = utilities.diff_match_patch
                             .patch_apply(
                               sentFilePatch,
-                              readFileBuffer.toString()
+                              readFileContents()
                             )[0];
                           utilities.fs.writeFile(
                             activeFileName,
