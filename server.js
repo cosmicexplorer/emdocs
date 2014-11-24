@@ -88,7 +88,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                       var patchResult = utilities.diff_match_patch
                         .patch_apply(
                           sentFilePatch,
-                          readFileBuffer.toString(),
+                          readFileBuffer.toString()
                         )[0];
                       utilities.fs.writeFile(
                         activeFileName,
