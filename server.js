@@ -90,6 +90,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                           }
                           console.log(error);
                         }
+                        console.log (sentFilePatch);
                         var patchResult = utilities.diff_match_patch
                           .patch_apply(
                             sentFilePatch,
