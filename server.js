@@ -47,7 +47,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
               }
               updateBufferInEmacs(
                 activeFileName,
-                activeFileName + utilities.TMP_FILENAME_SUFFIX
+                activeFileName
               );
               console.log("connection info received");
 
@@ -60,7 +60,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                     sentFileBuffer = "\n";
                   }
                   utilities.fs.writeFile(
-                    activeFileName + utilities.TMP_FILENAME_SUFFIX,
+                    activeFileName
                     sentFileBuffer,
                     function(error) {
                       if (error) {
@@ -68,7 +68,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                       }
                       updateBufferInEmacs(
                         activeFileName,
-                        activeFileName + utilities.TMP_FILENAME_SUFFIX
+                        activeFileName
                       );
                       console.log("file received");
                     });
