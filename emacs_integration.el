@@ -73,11 +73,15 @@ two-element vector in a part of the JSON created by google's diff_match_patch."
         (diff-string (aref diff-pair-vector 1)))
     (cond
      ((equal diff-op 0)
-      (forward-char (length diff-string)))
+      (loop for diff-character in diff-string
+            while (char-equal (char-after) diff-character)
+            do (forward-char 1)))
      ((equal diff-op 1)
       (insert diff-string))
      ((equal diff-op -1)
-      (delete-forward-char (length diff-string)))
+      (loop for diff-character in diff-string
+            while (char-equal (char-after) diff-character)
+            do (delete-forward-char 1)))
      (t
       (throw 'unrecognized-diff-op
              "diff_match_patch.patch_make operation not recognized")))))

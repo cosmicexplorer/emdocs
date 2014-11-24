@@ -56,7 +56,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
                   if (sentFileBuffer.toString() == "") {
-                    console.log("WHAT");
+                    sentFileBuffer = "\n";
                   }
                   utilities.fs.writeFile(
                     activeFileName + utilities.TMP_FILENAME_SUFFIX,
