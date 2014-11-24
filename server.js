@@ -14,6 +14,7 @@ var otherServerUri = "http://" + process.argv[3] + ':' +
 var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 
 // TODO: make proxy solution for network with firewall which blocks all ports
+// TODO: make solution to just find empty port instead of uniformly using 8080
 
 utilities.fs.writeFileSync(activeFileName, fileContents);
 utilities.fs.writeFileSync(
@@ -78,23 +79,27 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  utilities.fs.writeFile(
-                    activeFileName +
-                    utilities.DIFF_FILENAME_SUFFIX,
-                    JSON.stringify(sentFilePatch),
-                    function(error) {
+                  utilities.fs.readFile(
+                    activeFileName,
+                    function(error, readFileBuffer) {
                       if (error) {
                         console.log(error);
                       }
-                      console.log(
-                        JSON.stringify(
-                          sentFilePatch));
-                      performPatchFromFile(
+                      utilities.fs.writeFile(
                         activeFileName,
-                        activeFileName +
-                        utilities.DIFF_FILENAME_SUFFIX
-                      );
-                      console.log("diff received");
+                        utilities.diff_match_patch.patch_apply(
+                          readFileBuffer.toString(),
+                          sentFilePatch),
+                        function(error) {
+                          if (error) {
+                            console.log(error);
+                          }
+                          updateBufferInEmacs(
+                            activeFileName,
+                            activeFileName)
+                          console.log("diff received");
+                        };
+                      )
                     });
                 }
               });
