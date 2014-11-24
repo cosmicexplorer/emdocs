@@ -5,42 +5,30 @@
 
 ;; (perform-patch-from-file "emacs_integration.el" "test_node_output")
 
-
-;;; SUPRESS-MESSAGES
-(defmacro replace-symbol-in-sexp (new-symbol symbol-to-replace sexp)
-  `(eval ,`(subst ,new-symbol ,symbol-to-replace ',sexp)))
-
-(defun return-first-arg (&rest args)
-  (car args))
-
-(defmacro suppress-messages (sexp)
-  `(eval ,`(replace-symbol-in-sexp 'return-first-arg 'message ',sexp)))
-;;; END SUPPRESS-MESSAGES
+(load-file "./shell-command-minus-message.el")
 
 (defconst executable-directory "~/projects/emdocs/")
 
 (defun send-buffer-to-file (buffer-name file-path)
   "Sends contents of buffer buffer-name to file identified by file-path."
   (with-current-buffer buffer-name
-    (suppress-messages
-     (shell-command-on-region
-      (point-min) (point-max)
-      (concat executable-directory "write_stdin_to_file.sh" " " ; space args
-              "\"" file-path "\"")                              ; output file
-      "*emacs-docs-out*" nil
-      "*emacs-docs-err*" t))))
+    (shell-command-minus-message
+     (point-min) (point-max)
+     (concat executable-directory "write_stdin_to_file.sh" " " ; space args
+             "\"" file-path "\"")                              ; output file
+     "*emacs-docs-out*" nil
+     "*emacs-docs-err*" t)))
 
 (defun read-buffer-from-file (file-name)
   "Replaces contents of buffer with file identified by file-name."
   (with-current-buffer file-name
     (let ((cur-point (point)))          ; save-excursion doesn't work with
                                         ; buffer replacement like this
-      (supress-messages
-       (shell-command-on-region
-        (point-min) (point-max)
-        (concat "cat " file-name)
-        t t                             ; output and replace current buffer
-        "*emacs-docs-err*" t))
+      (shell-command-minus-message
+       (point-min) (point-max)
+       (concat "cat " file-name)
+       t t                             ; output and replace current buffer
+       "*emacs-docs-err*" t)
       (goto-char cur-point))))
 
 (defun read-file-to-string (file-name)
