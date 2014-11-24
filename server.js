@@ -89,14 +89,14 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                         activeFileName,
                         utilities.diff_match_patch.patch_apply(
                           readFileBuffer.toString(),
-                          sentFilePatch),
+                          sentFilePatch) [0],
                         function(error) {
                           if (error) {
                             console.log(error);
                           }
                           updateBufferInEmacs(
                             activeFileName,
-                            activeFileName)
+                            activeFileName);
                           console.log("diff received");
                         };
                       )
