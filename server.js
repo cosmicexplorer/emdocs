@@ -58,7 +58,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                       function(error,
                         readFileContents) {
                         if (error) {
-                          console.log(error);
+                         console.log(error);
                         }
                         var patch =
                           JSON.stringify(utilities.diff_match_patch
