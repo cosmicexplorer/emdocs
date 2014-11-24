@@ -44,7 +44,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
               if (error) {
                 console.log(error);
               }
-              updateBufferInEmacs(activeFileName);
+              updateBufferInEmacs(
+                activeFileName,
+                activeFileName + utilities.TMP_FILENAME_SUFFIX
+              );
               console.log("connection info received");
 
               socket.on('file_send', function(sentFileBuffer) {
@@ -52,6 +55,9 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
+                  if (sentFileBuffer.toString() == "") {
+                    console.log("WHAT");
+                  }
                   utilities.fs.writeFile(
                     activeFileName + utilities.TMP_FILENAME_SUFFIX,
                     sentFileBuffer,
@@ -59,8 +65,10 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                       if (error) {
                         console.log(error);
                       }
-                      updateBufferInEmacs(activeFileName +
-                        utilities.TMP_FILENAME_SUFFIX);
+                      updateBufferInEmacs(
+                        activeFileName,
+                        activeFileName + utilities.TMP_FILENAME_SUFFIX
+                      );
                       console.log("file received");
                     });
                 }
@@ -99,8 +107,8 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
         if (process.argv[3] == "127.0.0.1") {
-        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-        setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
+          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
+          setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
         }
       },
 
@@ -216,9 +224,11 @@ function broadcastDiff() {
 }
 
 
-function updateBufferInEmacs(filename, callback) {
+function updateBufferInEmacs(bufferName, filePath, callback) {
   var emacsReadFile = spawnEmacsCommand(
-    "read-buffer-from-file", "\"" + filename + "\"");
+    "read-buffer-from-file",
+    "\"" + bufferName + "\"",
+    "\"" + filePath + "\"");
   setupEmacsSpawn(
     emacsReadFile,
     "error: file could not be read",

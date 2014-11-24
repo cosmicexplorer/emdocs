@@ -20,14 +20,14 @@
      "*emdocs-out*" nil
      "*emdocs-err*" t)))
 
-(defun read-buffer-from-file (file-name)
-  "Replaces contents of buffer with file identified by file-name."
-  (with-current-buffer file-name
+(defun read-buffer-from-file (buffer file-path)
+  "Replaces contents of buffer-name with file identified by file-name."
+  (with-current-buffer buffer
     (let ((cur-point (point)))          ; save-excursion doesn't work with
                                         ; buffer replacement like this
       (shell-command-minus-message
        (point-min) (point-max)
-       (concat "cat " file-name)
+       (concat "cat " file-path)
        t t                             ; output and replace current buffer
        "*emdocs-err*" t)
       (goto-char cur-point))))
