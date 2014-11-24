@@ -79,38 +79,41 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  writeBufferToFile(function() {
-                    utilities.fs.readFile(
-                      activeFileName,
-                      function(error, readFileBuffer) {
-                        if (error) {
-                          if (34 == error.errno &&
+                  writeBufferToFile(
+                    activeFileName,
+                    activeFileName + utilities.DIFF_FILENAME_SUFFIX,
+                    function() {
+                      utilities.fs.readFile(
+                        activeFileName + utilities.DIFF_FILENAME_SUFFIX,
+                        function(error, readFileBuffer) {
+                          if (error) {
+                            if (34 == error.errno &&
                               'ENOENT' == error.code) {
-                            readFileBuffer = "";
-                          }
-                          console.log(error);
-                        }
-                        console.log (sentFilePatch);
-                        var patchResult = utilities.diff_match_patch
-                          .patch_apply(
-                            sentFilePatch,
-                            readFileBuffer.toString()
-                          )[0];
-                        utilities.fs.writeFile(
-                          activeFileName,
-                          patchResult,
-                          function(error) {
-                            if (error) {
-                              console.log(error);
+                              readFileBuffer = "";
                             }
-                            updateBufferInEmacs(
-                              activeFileName,
-                              activeFileName);
-                            console.log(
-                              "diff received");
-                          });
-                      });
-                  });
+                            console.log(error);
+                          }
+                          console.log(sentFilePatch);
+                          var patchResult = utilities.diff_match_patch
+                            .patch_apply(
+                              sentFilePatch,
+                              readFileBuffer.toString()
+                            )[0];
+                          utilities.fs.writeFile(
+                            activeFileName,
+                            patchResult,
+                            function(error) {
+                              if (error) {
+                                console.log(error);
+                              }
+                              updateBufferInEmacs(
+                                activeFileName,
+                                activeFileName);
+                              console.log(
+                                "diff received");
+                            });
+                        });
+                    });
                 }
               });
             });
@@ -175,10 +178,10 @@ function broadcastBuffer() {
 }
 
 
-function writeBufferToFile(callback) {
+function writeBufferToFile(bufferName, filePath, callback) {
   var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + "\"");
+    "send-buffer-to-file", "\"" + bufferName + "\"",
+    "\"" + filePath + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
     "error: buffer could not be saved",
