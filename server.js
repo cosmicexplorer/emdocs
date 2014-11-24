@@ -98,8 +98,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                             activeFileName,
                             activeFileName);
                           console.log("diff received");
-                        };
-                      )
+                        });
                     });
                 }
               });
