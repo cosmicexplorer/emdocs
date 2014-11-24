@@ -60,7 +60,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                     sentFileBuffer = "\n";
                   }
                   utilities.fs.writeFile(
-                    activeFileName
+                    activeFileName,
                     sentFileBuffer,
                     function(error) {
                       if (error) {
