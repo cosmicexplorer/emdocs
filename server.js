@@ -79,30 +79,33 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  utilities.fs.readFile(
-                    activeFileName,
-                    function(error, readFileBuffer) {
-                      if (error) {
-                        console.log(error);
-                      }
-                      var patchResult = utilities.diff_match_patch
-                        .patch_apply(
-                          sentFilePatch,
-                          readFileBuffer.toString()
-                        )[0];
-                      utilities.fs.writeFile(
-                        activeFileName,
-                        patchResult,
-                        function(error) {
-                          if (error) {
-                            console.log(error);
-                          }
-                          updateBufferInEmacs(
-                            activeFileName,
-                            activeFileName);
-                          console.log("diff received");
-                        });
-                    });
+                  writeBufferToFile(function() {
+                    utilities.fs.readFile(
+                      activeFileName,
+                      function(error, readFileBuffer) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        var patchResult = utilities.diff_match_patch
+                          .patch_apply(
+                            sentFilePatch,
+                            readFileBuffer.toString()
+                          )[0];
+                        utilities.fs.writeFile(
+                          activeFileName,
+                          patchResult,
+                          function(error) {
+                            if (error) {
+                              console.log(error);
+                            }
+                            updateBufferInEmacs(
+                              activeFileName,
+                              activeFileName);
+                            console.log(
+                              "diff received");
+                          });
+                      });
+                  });
                 }
               });
             });
