@@ -143,6 +143,9 @@ function broadcastBuffer() {
           if (error) {
             console.log(error);
           }
+          if (34 == error.errno && 'ENOENT' == error.code){
+            fileContents = "";
+          }
           p.emit('file_send', fileContents.toString());
         });
     });
