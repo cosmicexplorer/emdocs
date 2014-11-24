@@ -114,9 +114,9 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
         console.log("listening on " + utilities.os.hostname() + ':' +
           utilities.SERVER_HTTP_PORT);
         if (process.argv[3] == "127.0.0.1") {
-          setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
           setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
         }
+        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
       },
 
       // server socket function
