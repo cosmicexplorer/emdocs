@@ -146,14 +146,14 @@ function openFileInEmacs(filename, callback) {
 function broadcastBuffer() {
   var emacsWriteFile = spawnEmacsCommand(
     "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + "\"");
+    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
     "error: buffer could not be saved",
     "file broadcasted",
     function() {
       utilities.fs.readFile(
-        activeFileName,
+        activeFileName + utilities.TMP_FILENAME_SUFFIX,
         function(error, fileContents) {
           if (error) {
             console.log(error);
