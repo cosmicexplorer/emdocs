@@ -12,6 +12,7 @@ const TMP_FILENAME_SUFFIX = ".tmp";
 const DIFF_FILENAME_SUFFIX = ".diff";
 const CLIENT_COPY_FILE_SUFFIX = "_CLIENT_COPY";
 const LISP_FILE_PATH = "./emacs_integration.el";
+const EMIT_FILENAME = ".emission";
 
 // split into declarations and exports because variables need to be declared and
 // initialized in sequence, and exports doesn't do that
@@ -27,5 +28,6 @@ module.exports = {
   TMP_FILENAME_SUFFIX: TMP_FILENAME_SUFFIX,
   DIFF_FILENAME_SUFFIX: DIFF_FILENAME_SUFFIX,
   CLIENT_COPY_FILE_SUFFIX: CLIENT_COPY_FILE_SUFFIX,
-  LISP_FILE_PATH: LISP_FILE_PATH
+  LISP_FILE_PATH: LISP_FILE_PATH,
+  EMIT_FILENAME: EMIT_FILENAME
 }

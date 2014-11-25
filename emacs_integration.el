@@ -23,22 +23,32 @@
        "*emdocs-err*" t)
       (goto-char cur-point))))
 
+(require 'json)
+(defconst emdocs-emit-filename ".emission")
+(defconst emdocs-insert-edit "insert")
+(defconst emdocs-delete-edit "delete")
+(defconst emdocs-indel-edit "indel")
 (defun emdocs-emit-keypress (type point content)
   "Sends a keypress to the node server also running so that it can be emitted to
 other users on the network."
-  (throw 'unfinished-function t))
+  ;; currently just sends info to file where node will monitor with inotify
+  (with-temp-file emdocs-emit-filename
+    (insert (json-encode '(:type type :point point :content content)))))
 
 (defun emdocs-notify-others-of-change (beg end prev-length)
   "Retrieves keypress as one of the after-change-functions, parses content sent
 by after-change-functions, and dispatches the appropriate request to the node
 server."
   (cond ((= prev-length 0)              ; if insertion
-         (emdocs-emit-keypress "insert" beg (buffer-substring beg end)))
+         (emdocs-emit-keypress
+          emdocs-insert-edit beg (buffer-substring beg end)))
         ((= beg end)                    ; if deletion
-         (emdocs-emit-keypress "delete" beg prev-length))
+         (emdocs-emit-keypress
+          emdocs-delete-edit beg prev-length))
         (t                              ; insertion and deletion, as in a region
-         (emdocs-emit-keypress "indel" beg
-                               (cons prev-length (buffer-substring beg end))))))
+         (emdocs-emit-keypress
+          emdocs-indel-edit beg
+          (cons prev-length (buffer-substring beg end))))))
 
 (defun emdocs-set-after-change-functions (name-of-buffer)
   "Adds appropriate after-change-functions to the given name-of-buffer."

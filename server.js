@@ -1,4 +1,5 @@
 var utilities = require('./utilities');
+var serverFunctions = require('./server_functions');
 
 // argv[2] (required): the name of the active file
 // argv[3] (required): the ipv4 address of the server to contact first
@@ -16,306 +17,156 @@ var p = new utilities.p2p.peer(otherServerUri, utilities.SERVER_HTTP_PORT);
 // TODO: make proxy solution for network with firewall which blocks all ports
 // TODO: make solution to just find empty port instead of uniformly using 8080
 
+utilities.fs.watchFile(utilities.EMIT_FILENAME, function(curVer, prevVer) {
+  if (curVer.mtime != prevVer.mtime) {
+    utilities.fs.readFile(utilities.EMIT_FILENAME, function(error, contents) {
+      console.log("INOTIFY CONTENTS:");
+      console.log(contents);
+    });
+  }
+});
+
 utilities.fs.writeFileSync(activeFileName, fileContents);
 utilities.fs.writeFileSync(
   activeFileName + utilities.TMP_FILENAME_SUFFIX,
   tmpFileContents);
 
-openFileInEmacs(activeFileName, function() {
-  loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
-    p.start(
-      // client init function
-      function() {
-        console.log("speaking on " + utilities.os.hostname() + ':' +
-          utilities.SERVER_HTTP_PORT);
-      },
+serverFunctions.openFileInEmacs(activeFileName, function() {
+  serverFunctions.loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
+    serverFunctions.setupNotifyOnKeypress(activeFileName, function() {
+      p.start(
+        // client init function
+        function() {
+          console.log("speaking on " + utilities.os.hostname() +
+            ':' +
+            utilities.SERVER_HTTP_PORT);
+        },
 
-      // client socket function
-      function(socket) {
-        // get user id, filename, and file contents; write to file
-        socket.on('connection_info', function(
-          connectionInfo) {
-          activeFileName = connectionInfo.activeFileName;
-          fileContents = connectionInfo.fileContents;
-          tmpFileContents = fileContents;
-          utilities.fs.writeFile(
-            activeFileName,
-            fileContents,
-            function(error) {
-              if (error) {
-                console.log(error);
-              }
-              updateBufferInEmacs(
-                activeFileName,
-                activeFileName
-              );
-              console.log("connection info received");
+        // client socket function
+        function(socket) {
+          // get user id, filename, and file contents; write to file
+          socket.on('connection_info', function(
+            connectionInfo) {
+            activeFileName = connectionInfo.activeFileName;
+            fileContents = connectionInfo.fileContents;
+            tmpFileContents = fileContents;
+            utilities.fs.writeFile(
+              activeFileName,
+              fileContents,
+              function(error) {
+                if (error) {
+                  console.log(error);
+                }
+                serverFunctions.updateBufferInEmacs(
+                  activeFileName,
+                  activeFileName
+                );
+                console.log("connection info received");
 
-              socket.on('file_send', function(sentFileBuffer) {
-                // if not self socket
-                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                  utilities.p2p.client.getUriOfSocket(
-                    socket)) {
-                  if (undefined == sentFileBuffer) {
-                    sentFileBuffer = "";
+                socket.on('file_send', function(
+                  sentFileBuffer) {
+                  // if not self socket
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
+                    if (undefined == sentFileBuffer) {
+                      sentFileBuffer = "";
+                    }
+                    utilities.fs.writeFile(
+                      activeFileName,
+                      sentFileBuffer,
+                      function(error) {
+                        if (error) {
+                          console.log(error);
+                        }
+                        serverFunctions.updateBufferInEmacs(
+                          activeFileName,
+                          activeFileName
+                        );
+                        console.log("file received");
+                      });
                   }
-                  utilities.fs.writeFile(
-                    activeFileName,
-                    sentFileBuffer,
-                    function(error) {
-                      if (error) {
-                        console.log(error);
-                      }
-                      updateBufferInEmacs(
-                        activeFileName,
-                        activeFileName
-                      );
-                      console.log("file received");
-                    });
-                }
-              });
+                });
 
-              socket.on('file_diff', function(sentFilePatch) {
-                // if not self socket
-                if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
-                  utilities.p2p.client.getUriOfSocket(
-                    socket)) {
-                  writeBufferToFile(
-                    activeFileName,
-                    activeFileName + utilities.DIFF_FILENAME_SUFFIX,
-                    function() {
-                      utilities.fs.readFile(
-                        activeFileName + utilities.DIFF_FILENAME_SUFFIX,
-                        function(error, readFileBuffer) {
-                          if (error) {
-                            if (34 == error.errno &&
-                              'ENOENT' == error.code) {
-                              readFileBuffer = "";
-                            }
-                            console.log(error);
-                          }
-                          var readFileContents =
-                            readFileBuffer.toString();
-                          readFileContents += "\n";
-                          console.log(sentFilePatch);
-                          var patchResult = utilities.diff_match_patch
-                            .patch_apply(
-                              sentFilePatch,
-                              readFileContents()
-                            )[0];
-                          utilities.fs.writeFile(
-                            activeFileName,
-                            patchResult,
-                            function(error) {
-                              if (error) {
-                                console.log(error);
+                socket.on('file_diff', function(
+                  sentFilePatch) {
+                  // if not self socket
+                  if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
+                    utilities.p2p.client.getUriOfSocket(
+                      socket)) {
+                    serverFunctions.writeBufferToFile(
+                      activeFileName,
+                      activeFileName + utilities.DIFF_FILENAME_SUFFIX,
+                      function() {
+                        utilities.fs.readFile(
+                          activeFileName +
+                          utilities.DIFF_FILENAME_SUFFIX,
+                          function(error,
+                            readFileBuffer) {
+                            if (error) {
+                              if (34 == error.errno &&
+                                'ENOENT' == error.code
+                              ) {
+                                readFileBuffer = "";
                               }
-                              updateBufferInEmacs(
-                                activeFileName,
-                                activeFileName);
-                              console.log(
-                                "diff received");
-                            });
-                        });
-                    });
-                }
+                              console.log(error);
+                            }
+                            var readFileContents =
+                              readFileBuffer.toString();
+                            readFileContents +=
+                              "\n";
+                            console.log(
+                              sentFilePatch);
+                            var patchResult =
+                              utilities.diff_match_patch
+                              .patch_apply(
+                                sentFilePatch,
+                                readFileContents()
+                              )[0];
+                            utilities.fs.writeFile(
+                              activeFileName,
+                              patchResult,
+                              function(error) {
+                                if (error) {
+                                  console.log(
+                                    error);
+                                }
+                                serverFunctions.updateBufferInEmacs(
+                                  activeFileName,
+                                  activeFileName
+                                );
+                                console.log(
+                                  "diff received"
+                                );
+                              });
+                          });
+                      });
+                  }
+                });
               });
-            });
-        });
-      },
+          });
+        },
 
-      // server init function
-      function() {
-        console.log("listening on " + utilities.os.hostname() + ':' +
-          utilities.SERVER_HTTP_PORT);
-        if (process.argv[3] == "127.0.0.1") {
-          setInterval(broadcastBuffer, utilities.FILE_SYNC_TIME);
-        }
-        setInterval(broadcastDiff, utilities.DIFF_SYNC_TIME);
-      },
+        // server init function
+        function() {
+          console.log("listening on " + utilities.os.hostname() +
+            ':' +
+            utilities.SERVER_HTTP_PORT);
+          if (process.argv[3] == "127.0.0.1") {
+            setInterval(
+              serverFunctions.broadcastBuffer,
+              utilities.FILE_SYNC_TIME);
+          }
+          setInterval(serverFunctions.broadcastDiff, utilities.DIFF_SYNC_TIME);
+        },
 
-      // server socket function
-      function(socket) {
-        socket.emit('connection_info', {
-          activeFileName: activeFileName,
-          fileContents: fileContents
+        // server socket function
+        function(socket) {
+          socket.emit('connection_info', {
+            activeFileName: activeFileName,
+            fileContents: fileContents
+          });
         });
-      });
+    });
   });
 });
-
-// requires emacs to be open and server to be on
-function openFileInEmacs(filename, callback) {
-  var emacsOpenFile = utilities.spawn('emacsclient', ['-n', filename]);
-  setupEmacsSpawn(
-    emacsOpenFile,
-    "error: file could not be loaded",
-    "file loaded",
-    function() {
-      console.log("FILE OPENED :DDDDDDD");
-      callback();
-    });
-}
-
-
-function broadcastBuffer() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be saved",
-    "file broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(error, fileContents) {
-          if (error) {
-            console.log(error);
-            if (34 == error.errno && 'ENOENT' == error.code) {
-              fileContents = "";
-            }
-          }
-          p.emit('file_send', fileContents.toString());
-        });
-    });
-}
-
-
-function writeBufferToFile(bufferName, filePath, callback) {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + bufferName + "\"",
-    "\"" + filePath + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be saved",
-    "file broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(error, fileContents) {
-          if (error) {
-            console.log(error);
-          }
-          if ("function" == typeof(callback)) {
-            callback();
-          }
-        });
-    });
-}
-
-
-function broadcastDiff() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be loaded",
-    "diff broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(tmpError, tmpFileContents) {
-          if (tmpError) {
-            console.log(tmpError);
-            if (34 == tmpError.errno && 'ENOENT' == tmpError.code) {
-              tmpFileContents = "";
-            }
-          }
-          utilities.fs.readFile(
-            activeFileName,
-            function(curError, curFileContents) {
-              if (curError) {
-                console.log(curError);
-                if (34 == curError.errno && 'ENOENT' == curError.code) {
-                  curFileContents = "";
-                }
-              }
-              utilities.fs.writeFile(
-                activeFileName,
-                tmpFileContents,
-                function(error) {
-                  if (error) {
-                    console.log(error);
-                  }
-                  p.emit('file_diff',
-                    utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(),
-                      tmpFileContents.toString()));
-                }
-              );
-            });
-        });
-    });
-}
-
-
-function updateBufferInEmacs(bufferName, filePath, callback) {
-  var emacsReadFile = spawnEmacsCommand(
-    "read-buffer-from-file",
-    "\"" + bufferName + "\"",
-    "\"" + filePath + "\"");
-  setupEmacsSpawn(
-    emacsReadFile,
-    "error: file could not be read",
-    "file read",
-    callback);
-}
-
-
-function loadEmacsLisp(filename, callback) {
-  var emacsLoadFile = spawnEmacsCommand(
-    "load-file", "\"" + filename + "\""
-  );
-  setupEmacsSpawn(
-    emacsLoadFile,
-    "error: file could not be loaded",
-    "file loaded",
-    callback);
-}
-
-
-function performPatchFromFile(filename, callback) {
-  var emacsPerformPatch = spawnEmacsCommand(
-    "perform-patch-from-file", "\"" + filename + "\"",
-    "\"" + filename + utilities.DIFF_FILENAME_SUFFIX + "\""
-  );
-  setupEmacsSpawn(
-    emacsPerformPatch,
-    "error: patch could not be performed",
-    "file loaded",
-    callback);
-}
-
-// helper function
-function setupEmacsSpawn(spawnProcess, errorText, successText, callback) {
-  spawnProcess.stdout.on('data', function(data) {
-    console.log("emacs stdout: " + data);
-  });
-  spawnProcess.stderr.on('data', function(data) {
-    console.log("emacs stderr: " + data);
-  });
-  spawnProcess.on('exit', function(return_code, signal) {
-    if (return_code != 0) {
-      console.log(errorText);
-    } else {
-      console.log(successText);
-    }
-    if ("function" == typeof(callback)) {
-      callback();
-    }
-  });
-}
-
-// helper function
-// takes variable number of arguments
-// returns spawn object
-function spawnEmacsCommand() {
-  var evalArg = "(";
-  for (var i = 0; i < arguments.length; ++i) {
-    evalArg += arguments[i] + " ";
-  }
-  evalArg += ")";
-  return utilities.spawn('emacsclient', ['-e', evalArg]);
-}
