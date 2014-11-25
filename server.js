@@ -21,8 +21,8 @@ utilities.fs.writeFileSync(
   activeFileName + utilities.TMP_FILENAME_SUFFIX,
   tmpFileContents);
 
-loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
-  openFileInEmacs(activeFileName, function() {
+openFileInEmacs(activeFileName, function() {
+  loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
     p.start(
       // client init function
       function() {
@@ -56,8 +56,8 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {
-                  if (sentFileBuffer.toString() == "") {
-                    sentFileBuffer = "\n";
+                  if (undefined == sentFileBuffer) {
+                    sentFileBuffer = "";
                   }
                   utilities.fs.writeFile(
                     activeFileName,
@@ -76,6 +76,7 @@ loadEmacsLisp(utilities.LISP_FILE_PATH, function() {
               });
 
               socket.on('file_diff', function(sentFilePatch) {
+                // if not self socket
                 if ("http://127.0.0.1:" + utilities.SERVER_HTTP_PORT !=
                   utilities.p2p.client.getUriOfSocket(
                     socket)) {

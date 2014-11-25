@@ -1,6 +1,6 @@
-(defun shell-command-minus-message (start end command
-                                          &optional output-buffer replace
-                                          error-buffer display-error-buffer)
+(defun emdocs-shell-command-minus-message (start end command
+                                           &optional output-buffer replace
+                                           error-buffer display-error-buffer)
   "Copy of shell-command-on-region, but doesn't message if there is no output."
   (interactive (let (string)
 		 (unless (mark)
