@@ -6,7 +6,7 @@
 (defvar *emdocs-client-modifying-buffer* nil)
 
 (defun emdocs-client-start ()
-  (unless (process-status emdocs-client-process-name)
+  (unless (process-status +emdocs-client-process-name+)
     (setq *emdocs-client-socket-process*
           (make-network-process
            :name +emdocs-client-process-name+

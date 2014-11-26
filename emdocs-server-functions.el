@@ -1,8 +1,6 @@
 ;;; server socket connection
 (defconst +emdocs-internal-http-port+ 8081)
-(defvar *emdocs-client-table* (make-hash-table
-                                 :test 'eq
-                                 :weakness 'key-and-value))
+(defvar *emdocs-client-table* nil)
 (defvar *emdocs-server-process* nil)
 (defconst +emdocs-server-process-name+ "emdocs-server")
 (defconst +emdocs-server-buffer-name+ "*emdocs-server*")
@@ -20,6 +18,7 @@
            :filter #'emdocs-server-filter
            :server t
            :noquery t))
+    (setq *emdocs-client-table* (make-hash-table :test 'eq :weakness nil))
     (emdocs-server-log-message "server started")))
 
 (defun emdocs-server-stop ()
@@ -62,5 +61,6 @@
 
 (emdocs-server-start)
 (emdocs-list-clients)
+(hash-table-weakness *emdocs-client-table*)
 (emdocs-server-broadcast-message "hello world!\n")
 (emdocs-server-stop)
