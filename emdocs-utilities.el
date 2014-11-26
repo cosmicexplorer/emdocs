@@ -1,19 +1,13 @@
-(defun emdocs-get-network-interfaces ()
-  "return network interfaces from ifconfig as a list of strings"
-  (split-string
-   (substring
-    (shell-command-to-string "ifconfig | grep -Po \"^[[:alnum:]]+(?=:)\"")
-    0 -1)))
+(defconst emdocs-insert-edit "insert")
+(defconst emdocs-delete-edit "delete")
+(defconst emdocs-indel-edit "indel")
 
 (defun emdocs-get-ip-address (&optional device-name)
+  "Returns ip address of active interface, ignoring loopback. Returns nil if
+none active."
   (if device-name
       (format-network-address (car (network-interface-info device-name)) t)
-    (let ((net-device nil))
-      (loop for dev in (get-network-interfaces)
-            do (when (and (network-interface-info dev)
-                          (not (string-equal dev "lo")))
-                 (setq net-device
-                       (format-network-address
-                        (car (network-interface-info dev))
-                        t))))
-      net-device)))
+    (let ((network-interfaces (network-interface-list)))
+      (if (string-equal (caar network-interfaces) "lo")
+          nil
+        (format-network-address (cdar (network-interface-list)) t)))))
