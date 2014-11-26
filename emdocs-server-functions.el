@@ -1,4 +1,5 @@
 ;;; server socket connection
+(load-file "./emdocs-utilities.el")
 (defconst +emdocs-internal-http-port+ 8081)
 (defvar *emdocs-client-table* nil)
 (defvar *emdocs-server-process* nil)
@@ -12,7 +13,7 @@
            :name +emdocs-server-process-name+
            :buffer +emdocs-server-buffer-name+
            :family 'ipv4
-           :host 'local
+           :host (emdocs-get-ip-address)
            :service +emdocs-internal-http-port+
            :sentinel #'emdocs-server-sentinel
            :filter #'emdocs-server-filter
@@ -22,11 +23,10 @@
     (emdocs-server-log-message "server started")))
 
 (defun emdocs-server-stop ()
-  (maphash '(lambda (client-socket cur-message)
-             (delete-process client-socket))
+  (maphash '(lambda (client-socket cur-message) (delete-process client-socket))
            *emdocs-client-table*)
   (clrhash *emdocs-client-table*)
-  (delete-process +emdocs-server-process-name+)
+  (delete-process *emdocs-server-process*)
   (setq *emdocs-server-process* nil))
 
 (defun emdocs-server-filter (client-socket message)
@@ -59,8 +59,8 @@
               (emdocs-server-log-message "SOCKET LOGGED" client-socket))
            *emdocs-client-table*))
 
-(emdocs-server-start)
-(emdocs-list-clients)
-(hash-table-weakness *emdocs-client-table*)
-(emdocs-server-broadcast-message "hello world!\n")
-(emdocs-server-stop)
+;; (emdocs-server-start)
+;; (emdocs-list-clients)
+;; (hash-table-weakness *emdocs-client-table*)
+;; (emdocs-server-broadcast-message "hello world!\n")
+;; (emdocs-server-stop)

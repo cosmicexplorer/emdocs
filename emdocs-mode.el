@@ -35,7 +35,6 @@ other users on the network."
            "\n")))
 
 ;;; client functions
-;;; TODO: figure out why connection to server keeps dropping for no reason
 (load-file "./emdocs-client-functions.el")
 (defun emdocs-receive-changes-on-buffer (name-of-buffer)
   (setq *emdocs-client-modifying-buffer* name-of-buffer))
@@ -58,5 +57,8 @@ other users on the network."
         (delete-forward-char content))
        (t
         (throw 'unrecognized-op t))))))
+
+;;; integration functions
+(defun )
 
 (provide 'emdocs)

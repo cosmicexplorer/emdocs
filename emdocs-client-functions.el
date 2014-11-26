@@ -1,5 +1,4 @@
 ;;; client socket connection
-(load-file "./emdocs-server-functions.el")
 (defconst +emdocs-client-process-name+ "emdocs-client")
 (defconst +emdocs-client-buffer-name+ "*emdocs-client*")
 (defvar *emdocs-client-socket-process* nil)
@@ -44,6 +43,6 @@
 (defun emdocs-client-send-message (message)
   (process-send-string *emdocs-client-socket-process* message))
 
-(emdocs-client-start)
-(emdocs-client-send-message "hello world!\n")
-(emdocs-client-stop)
+;; (emdocs-client-start)
+;; (emdocs-client-send-message "hello world!\n")
+;; (emdocs-client-stop)
