@@ -21,7 +21,7 @@ utilities.fs.watchFile(utilities.EMIT_FILENAME, function(curVer, prevVer) {
   if (curVer.mtime != prevVer.mtime) {
     utilities.fs.readFile(utilities.EMIT_FILENAME, function(error, contents) {
       console.log("INOTIFY CONTENTS:");
-      console.log(contents);
+      console.log(contents.toString());
     });
   }
 });
@@ -152,12 +152,12 @@ serverFunctions.openFileInEmacs(activeFileName, function() {
           console.log("listening on " + utilities.os.hostname() +
             ':' +
             utilities.SERVER_HTTP_PORT);
-          if (process.argv[3] == "127.0.0.1") {
-            setInterval(
-              serverFunctions.broadcastBuffer,
-              utilities.FILE_SYNC_TIME);
-          }
-          setInterval(serverFunctions.broadcastDiff, utilities.DIFF_SYNC_TIME);
+          // if (process.argv[3] == "127.0.0.1") {
+          //   setInterval(
+          //     serverFunctions.broadcastBuffer,
+          //     utilities.FILE_SYNC_TIME);
+          // }
+          // setInterval(serverFunctions.broadcastDiff, utilities.DIFF_SYNC_TIME);
         },
 
         // server socket function

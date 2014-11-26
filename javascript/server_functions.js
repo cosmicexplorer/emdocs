@@ -31,33 +31,33 @@ function setupNotifyOnKeypress(filename, callback){
   )
 }
 
-function broadcastBuffer() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be saved",
-    "file broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(error, fileContents) {
-          if (error) {
-            console.log(error);
-            if (34 == error.errno && 'ENOENT' == error.code) {
-              fileContents = "";
-            }
-          }
-          p.emit('file_send', fileContents.toString());
-        });
-    });
-}
+// function broadcastBuffer() {
+//   var emacsWriteFile = spawnEmacsCommand(
+//     "emdocs-send-buffer-to-file", "\"" + activeFileName + "\"",
+//     "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+//   setupEmacsSpawn(
+//     emacsWriteFile,
+//     "error: buffer could not be saved",
+//     "file broadcasted",
+//     function() {
+//       utilities.fs.readFile(
+//         activeFileName + utilities.TMP_FILENAME_SUFFIX,
+//         function(error, fileContents) {
+//           if (error) {
+//             console.log(error);
+//             if (34 == error.errno && 'ENOENT' == error.code) {
+//               fileContents = "";
+//             }
+//           }
+//           p.emit('file_send', fileContents.toString());
+//         });
+//     });
+// }
 
 
 function writeBufferToFile(bufferName, filePath, callback) {
   var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + bufferName + "\"",
+    "emdocs-send-buffer-to-file", "\"" + bufferName + "\"",
     "\"" + filePath + "\"");
   setupEmacsSpawn(
     emacsWriteFile,
@@ -78,55 +78,55 @@ function writeBufferToFile(bufferName, filePath, callback) {
 }
 
 
-function broadcastDiff() {
-  var emacsWriteFile = spawnEmacsCommand(
-    "send-buffer-to-file", "\"" + activeFileName + "\"",
-    "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
-  setupEmacsSpawn(
-    emacsWriteFile,
-    "error: buffer could not be loaded",
-    "diff broadcasted",
-    function() {
-      utilities.fs.readFile(
-        activeFileName + utilities.TMP_FILENAME_SUFFIX,
-        function(tmpError, tmpFileContents) {
-          if (tmpError) {
-            console.log(tmpError);
-            if (34 == tmpError.errno && 'ENOENT' == tmpError.code) {
-              tmpFileContents = "";
-            }
-          }
-          utilities.fs.readFile(
-            activeFileName,
-            function(curError, curFileContents) {
-              if (curError) {
-                console.log(curError);
-                if (34 == curError.errno && 'ENOENT' == curError.code) {
-                  curFileContents = "";
-                }
-              }
-              utilities.fs.writeFile(
-                activeFileName,
-                tmpFileContents,
-                function(error) {
-                  if (error) {
-                    console.log(error);
-                  }
-                  p.emit('file_diff',
-                    utilities.diff_match_patch.patch_make(
-                      curFileContents.toString(),
-                      tmpFileContents.toString()));
-                }
-              );
-            });
-        });
-    });
-}
+// function broadcastDiff() {
+//   var emacsWriteFile = spawnEmacsCommand(
+//     "emdocs-send-buffer-to-file", "\"" + activeFileName + "\"",
+//     "\"" + activeFileName + utilities.TMP_FILENAME_SUFFIX + "\"");
+//   setupEmacsSpawn(
+//     emacsWriteFile,
+//     "error: buffer could not be loaded",
+//     "diff broadcasted",
+//     function() {
+//       utilities.fs.readFile(
+//         activeFileName + utilities.TMP_FILENAME_SUFFIX,
+//         function(tmpError, tmpFileContents) {
+//           if (tmpError) {
+//             console.log(tmpError);
+//             if (34 == tmpError.errno && 'ENOENT' == tmpError.code) {
+//               tmpFileContents = "";
+//             }
+//           }
+//           utilities.fs.readFile(
+//             activeFileName,
+//             function(curError, curFileContents) {
+//               if (curError) {
+//                 console.log(curError);
+//                 if (34 == curError.errno && 'ENOENT' == curError.code) {
+//                   curFileContents = "";
+//                 }
+//               }
+//               utilities.fs.writeFile(
+//                 activeFileName,
+//                 tmpFileContents,
+//                 function(error) {
+//                   if (error) {
+//                     console.log(error);
+//                   }
+//                   p.emit('file_diff',
+//                     utilities.diff_match_patch.patch_make(
+//                       curFileContents.toString(),
+//                       tmpFileContents.toString()));
+//                 }
+//               );
+//             });
+//         });
+//     });
+// }
 
 
 function updateBufferInEmacs(bufferName, filePath, callback) {
   var emacsReadFile = spawnEmacsCommand(
-    "read-buffer-from-file",
+    "emdocs-read-buffer-from-file",
     "\"" + bufferName + "\"",
     "\"" + filePath + "\"");
   setupEmacsSpawn(
@@ -148,18 +148,6 @@ function loadEmacsLisp(filename, callback) {
     callback);
 }
 
-
-function performPatchFromFile(filename, callback) {
-  var emacsPerformPatch = spawnEmacsCommand(
-    "perform-patch-from-file", "\"" + filename + "\"",
-    "\"" + filename + utilities.DIFF_FILENAME_SUFFIX + "\""
-  );
-  setupEmacsSpawn(
-    emacsPerformPatch,
-    "error: patch could not be performed",
-    "file loaded",
-    callback);
-}
 
 // helper function
 function setupEmacsSpawn(spawnProcess, errorText, successText, callback) {
@@ -191,4 +179,14 @@ function spawnEmacsCommand() {
   }
   evalArg += ")";
   return utilities.spawn('emacsclient', ['-e', evalArg]);
+}
+
+module.exports = {
+  openFileInEmacs: openFileInEmacs,
+  setupNotifyOnKeypress: setupNotifyOnKeypress,
+  // broadcastBuffer: broadcastBuffer,
+  writeBufferToFile: writeBufferToFile,
+  // broadcastDiff: broadcastDiff,
+  updateBufferInEmacs: updateBufferInEmacs,
+  loadEmacsLisp: loadEmacsLisp
 }

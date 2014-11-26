@@ -6,6 +6,7 @@ var diff_match_patch = require('./diff_match_patch');
 var p2p = require('./p2p');
 // constants
 const SERVER_HTTP_PORT = 8080;
+const INTERNAL_HTTP_PORT = 8081;
 const DIFF_SYNC_TIME = 1000; // in milliseconds
 const FILE_SYNC_TIME = 10000;
 const TMP_FILENAME_SUFFIX = ".tmp";
