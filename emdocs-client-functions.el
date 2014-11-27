@@ -1,40 +1,45 @@
+;; -*- lexical-binding: t; -*-
+;;; see https://stackoverflow.com/questions/27166957/
+;;; emacs-not-accepting-lambda-in-after-change-functions
+
 ;;; client socket connection
 (load-file "./emdocs-utilities.el")
-(defconst +emdocs-client-process-name+ "emdocs-client")
-(defconst +emdocs-client-buffer-name+ "*emdocs-client*")
-(defvar *emdocs-client-socket-process* nil)
-(defvar *emdocs-client-modifying-buffer* nil)
+(load-file "./emdocs-network-classes.el")
 
-(defun emdocs-client-start (&optional name-of-buffer)
-  (unless (process-status +emdocs-client-process-name+)
-    (setq *emdocs-client-socket-process*
+(defmethod emdocs-client-start ((client emdocs-client) buffer-to-change)
+  (unless (process-status (emdocs-get-process-name client))
+    (setf (emdocs-get-process client)
           (make-network-process
-           :name +emdocs-client-process-name+
-           :buffer +emdocs-client-buffer-name+
+           :name (emdocs-get-process-name client)
+           :buffer (emdocs-get-log-buffer client)
            :family 'ipv4
            :host 'local
            :service +emdocs-internal-http-port+
-           :sentinel #'emdocs-client-sentinel
-           :filter #'emdocs-client-filter
+           :sentinel #'(lambda (sock msg)
+                         (emdocs-client-sentinel client sock msg))
+           :filter #'(lambda (sock msg)
+                       (emdocs-client-filter client sock msg))
            :server nil
            :noquery t))
-    (emdocs-client-log-message "client started")
-    (when name-of-buffer (emdocs-receive-changes-on-buffer name-of-buffer))))
+    (emdocs-receive-changes-on-buffer client buffer-to-change)
+    (emdocs-client-log-message client "client started")))
 
-(defun emdocs-client-stop ()
-  (delete-process +emdocs-client-process-name+)
-  (setq *emdocs-client-socket-process* nil))
+(defmethod emdocs-client-stop ((client emdocs-client))
+  (when (process-status (emdocs-get-process-name client))
+    (delete-process (emdocs-get-process client))
+    (setf (emdocs-get-process client) nil)))
 
-(defun emdocs-client-filter (server-socket message)
-  (when *emdocs-client-modifying-buffer*
-    (emdocs-receive-keypress message *emdocs-client-modifying-buffer*))
-  (emdocs-client-log-message message server-socket))
+(defmethod emdocs-client-filter ((client emdocs-client) server-socket message)
+  (when (emdocs-get-attached-buffer client)
+    (emdocs-receive-keypress message (emdocs-get-attached-buffer client)))
+  (emdocs-client-log-message client message server-socket))
 
-(defun emdocs-client-sentinel (server-socket message)
-  (emdocs-client-log-message message server-socket))
+(defmethod emdocs-client-sentinel ((client emdocs-client) server-socket message)
+  (emdocs-client-log-message client message server-socket))
 
-(defun emdocs-client-log-message (string &optional server-socket)
-  (with-current-buffer (get-buffer-create +emdocs-client-buffer-name+)
+(defmethod emdocs-client-log-message ((client emdocs-client)
+                                      string &optional server-socket)
+  (with-current-buffer (get-buffer (emdocs-get-log-buffer client))
     (goto-char (point-max))
     (insert
      (current-time-string)
@@ -42,11 +47,12 @@
      string)
     (newline)))
 
-(defun emdocs-client-send-message (message)
-  (process-send-string *emdocs-client-socket-process* message))
+(defmethod emdocs-client-send-message ((client emdocs-client) message)
+  (process-send-string (emdocs-get-process client) message))
 
-(defun emdocs-receive-changes-on-buffer (name-of-buffer)
-  (setq *emdocs-client-modifying-buffer* name-of-buffer))
+(defmethod emdocs-receive-changes-on-buffer ((client emdocs-client)
+                                             name-of-buffer)
+  (setf (emdocs-get-attached-buffer client) name-of-buffer))
 
 (defun emdocs-receive-keypress (message name-of-buffer)
   (let ((json-object-type 'plist))
@@ -64,10 +70,6 @@
         (insert content))
        ((string-equal type emdocs-delete-edit)
         (goto-char point)
-        (delete-forward-char content))
+        (delete-char content))
        (t
         (throw 'unrecognized-op t))))))
-
-;; (emdocs-client-start)
-;; (emdocs-client-send-message "hello world!\n")
-;; (emdocs-client-stop)
