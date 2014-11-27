@@ -7,7 +7,8 @@
 
 ;;; integration functions
 (defun emdocs-connect (input-ip-address)
-  (interactive "Mip address (blank for none): ")
+  (interactive "Mip address (RET for none): ")
+  ;; input-ip-address is "" if not given
   (let* ((base-proc-name (concat input-ip-address
                            ":"
                            (number-to-string +emdocs-internal-http-port+)
@@ -20,20 +21,26 @@
           :process-name (concat "emdocs-server:" base-proc-name)
           :log-buffer (concat "emdocs-server:" base-buf-name)))
         (client-to-add
-         (make-instance
-          'emdocs-client
-          :process-name (concat "emdocs-client:" base-proc-name)
-          :log-buffer (concat "emdocs-client:" base-buf-name))))
+         (if (string-equal input-ip-address "")
+             nil
+           (make-instance
+            'emdocs-client
+            :process-name (concat "emdocs-client:" base-proc-name)
+            :log-buffer (concat "emdocs-client:" base-buf-name)
+            :address-connecting-to input-ip-address))))
     (puthash
      server-to-add
      (buffer-name)
      *emdocs-server-table*)
-    (puthash
-     client-to-add
-     (buffer-name)
-     *emdocs-client-table*)
     (emdocs-server-start server-to-add (buffer-name))
-    (emdocs-client-start client-to-add (buffer-name))))
+    (unless (string-equal input-ip-address "")
+      (setf (emdocs-get-address-connecting-to client-to-add)
+            input-ip-address)
+      (puthash
+       client-to-add
+       (buffer-name)
+       *emdocs-client-table*)
+      (emdocs-client-start client-to-add (buffer-name)))))
 
 (defun get-server ()
   (if (= (hash-table-count *emdocs-server-table*) 1)

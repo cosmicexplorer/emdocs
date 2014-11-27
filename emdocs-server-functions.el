@@ -1,5 +1,4 @@
 ;; -*- lexical-binding: t; -*-
-
 ;;; see https://stackoverflow.com/questions/27166957/
 ;;; emacs-not-accepting-lambda-in-after-change-functions
 
@@ -16,8 +15,8 @@
            :name (emdocs-get-process-name server)
            :buffer (emdocs-get-log-buffer server)
            :family 'ipv4
-           ;; :host (emdocs-get-ip-address)
-           :host 'local
+           ;; :host 'local
+           :host (emdocs-get-global-ip-address)
            :service +emdocs-internal-http-port+
            :sentinel #'(lambda (sock msg)
                          (emdocs-server-sentinel server sock msg))

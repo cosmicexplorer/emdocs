@@ -13,7 +13,8 @@
            :name (emdocs-get-process-name client)
            :buffer (emdocs-get-log-buffer client)
            :family 'ipv4
-           :host 'local
+           ;; :host 'local
+           :host (emdocs-get-address-connecting-to client)
            :service +emdocs-internal-http-port+
            :sentinel #'(lambda (sock msg)
                          (emdocs-client-sentinel client sock msg))

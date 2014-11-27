@@ -38,4 +38,8 @@
    (attached-buffer
     :initarg :attached-buffer
     :initform nil
-    :accessor emdocs-get-attached-buffer)))
+    :accessor emdocs-get-attached-buffer)
+   (address-connecting-to
+    :initform nil
+    :initarg :address-connecting-to
+    :access emdocs-get-address-connecting-to)))
