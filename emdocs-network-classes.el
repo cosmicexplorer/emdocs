@@ -18,7 +18,10 @@
     :accessor emdocs-get-attached-buffer)
    (client-hash-table
     :initform (make-hash-table :test 'eq :weakness nil)
-    :accessor emdocs-get-hash-table)))
+    :accessor emdocs-get-hash-table)
+   (after-change-function
+    :initform nil
+    :accessor emdocs-get-after-change-function)))
 
 (defclass emdocs-client ()
   ((process

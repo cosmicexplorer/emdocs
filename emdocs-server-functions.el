@@ -28,7 +28,7 @@
            :server t
            :noquery t))
     (emdocs-server-log-message server "server started")
-    (emdocs-set-after-change-functions server buffer-to-broadcast))
+    (emdocs-attach-and-set-change-functions server buffer-to-broadcast))
   (emdocs-get-process-name server))
 
 (defmethod emdocs-server-stop ((server emdocs-server))
@@ -38,7 +38,14 @@
              (emdocs-get-hash-table server))
     (clrhash (emdocs-get-hash-table server))
     (delete-process (emdocs-get-process server))
-    (setf (emdocs-get-process server) nil)))
+    (setf (emdocs-get-process server) nil)
+    (with-current-buffer (emdocs-get-attached-buffer server)
+      (setq-local after-change-functions
+                  (remove-if
+                   #'(lambda (func)
+                       (eq func
+                           (emdocs-get-after-change-function server)))
+                   after-change-functions)))))
 
 (defmethod emdocs-server-filter ((server emdocs-server) client-socket message)
   (emdocs-server-log-message server message client-socket))
@@ -96,14 +103,17 @@ other users on the network."
    (concat (json-encode `(,:type ,type ,:point ,point ,:content ,content))
            "\n")))
 
-(defmethod emdocs-set-after-change-functions ((server emdocs-server)
+(defmethod emdocs-attach-and-set-change-functions ((server emdocs-server)
                                               name-of-buffer)
   "Adds appropriate after-change-functions to the given name-of-buffer."
-  (setf (emdocs-get-attached-buffer server) name-of-buffer)
-  (with-current-buffer name-of-buffer
-    (setq-local after-change-functions
-                (cons
-                 #'(lambda (beg end prev-length)
-                     (emdocs-notify-others-of-change
-                      server beg end prev-length))
-                 after-change-functions))))
+  (unless (emdocs-get-after-change-function server)
+    (setf (emdocs-get-attached-buffer server) name-of-buffer)
+    (setf (emdocs-get-after-change-function server)
+          #'(lambda (beg end prev-length)
+              (emdocs-notify-others-of-change
+               server beg end prev-length)))
+    (with-current-buffer name-of-buffer
+      (setq-local after-change-functions
+                  (cons
+                   (emdocs-get-after-change-function server)
+                   after-change-functions)))))
