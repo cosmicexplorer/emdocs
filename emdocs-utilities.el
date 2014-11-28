@@ -1,3 +1,15 @@
+;; -*- lexical-binding: t; -*-
+(defconst +emdocs-external-http-port+ 8080)
+(defconst +emdocs-internal-http-port+ 8081)
+
+(defconst +emdocs-conn-broken-msg-regex+ "^connection broken by remote peer")
+(defconst +emdocs-conn-added-msg-regex+ "^open from")
+
+(defconst +emdocs-edit-msg-header+ "EDIT_MSG")
+(defconst +emdocs-ask-for-address-header+ "ASK_ADDR")
+(defconst +emdocs-receive-address-header+ "REC_ADDR")
+(defconst +emdocs-client-add-header+ "CLIENT_ADD")
+
 (defconst emdocs-insert-edit "insert")
 (defconst emdocs-delete-edit "delete")
 (defconst emdocs-indel-edit "indel")
