@@ -36,26 +36,11 @@
   ;; input-ip-address is "" if not given
   (let ((global-ip (emdocs-get-external-ip-address))
         (server-to-add
-         (emdocs-make-server)
-          (make-instance
-           'emdocs-server
-           :process-name (concat "emdocs-server:" base-proc-name)
-           :log-buffer (concat "emdocs-server:" base-buf-name)
-           :port +emdocs-external-http-port+
-           :host (emdocs-get-internal-ip-address)
-           :global-ip global-ip
-           :attached-buffer (buffer-name)))
+         (emdocs-make-server global-ip buffer-name))
          (client-to-add
           (if (string-equal input-ip-address "")
               nil
-            (make-instance
-             'emdocs-client
-             :process-name (concat "emdocs-client:" base-proc-name)
-             :log-buffer (concat "emdocs-client:" base-buf-name)
-             :port +emdocs-external-http-port+
-             :host input-ip-address
-             :global-ip global-ip
-             :attached-buffer (buffer-name)))))
+            (emdocs-make-client (global-ip (buffer-name))))))
     (emdocs-attach-and-tableify server-to-add
                                 (emdocs-get-global-client-table))
     (when client-to-add
