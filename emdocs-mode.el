@@ -36,11 +36,11 @@
   ;; input-ip-address is "" if not given
   (let ((global-ip (emdocs-get-external-ip-address))
         (server-to-add
-         (emdocs-make-server global-ip buffer-name))
+         (emdocs-make-server global-ip (buffer-name)))
          (client-to-add
           (if (string-equal input-ip-address "")
               nil
-            (emdocs-make-client (global-ip (buffer-name))))))
+            (emdocs-make-client global-ip (buffer-name)))))
     (emdocs-attach-and-tableify server-to-add
                                 (emdocs-get-global-client-table))
     (when client-to-add
