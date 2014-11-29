@@ -4,7 +4,7 @@
 
 ;;; inheritance tree:
 ;;;
-;;;                  (emdocs-attached-buffer-base) (see comments below)
+;;;                  <emdocs-attached-buffer-base> (see TODO below)
 ;;;                                         \     \
 ;;;                                          \     \
 ;;;                           emdocs-server-base - emdocs-server
@@ -35,7 +35,18 @@
     :accessor emdocs-get-host)
    (global-ip
     :initarg :global-ip
-    :accessor emdocs-get-global-ip)))
+    :accessor emdocs-get-global-ip)
+   ;; THIS IS TRICKY; the class allocation is for EACH CLASS, not one for all
+   ;; subclasses!
+   (singleton-client-table
+    :accessor emdocs-get-singleton-client-table
+    :allocation :class)))
+
+;;; MUST be run before using emdocs-start!
+(defmethod emdocs-initialize-client-table ((conn emdocs-connection-base)
+                                           table)
+  (unless (emdocs-get-singleton-client-table conn)
+    (setf (emdocs-get-singleton-client-table conn) table)))
 
 (defclass emdocs-server-base (emdocs-connection-base)
   ((client-hash-table
@@ -53,16 +64,18 @@
     :accessor emdocs-get-after-change-function)
    (attached-buffer
     :initarg :attached-buffer
-    :initform nil
     :accessor emdocs-get-attached-buffer)))
 
 (defclass emdocs-client (emdocs-client-base)
   ((attached-buffer
      :initarg :attached-buffer
-     :initform nil
      :accessor emdocs-get-attached-buffer)))
 
 ;;; base functions
+(defmethod emdocs-start ((conn emdocs-connection-base))
+  (unless (emdocs-get-singleton-client-table conn)
+    (throw 'uninitialized-client-table t)))
+
 (defmethod emdocs-filter ((socket-obj emdocs-connection-base)
                           socket
                           message)
@@ -108,8 +121,7 @@
     (emdocs-log-message server "server started"))
   server)
 
-(defmethod emdocs-stop :before ((server emdocs-server-base)
-                               &optional cleanup-socket)
+(defmethod emdocs-stop ((server emdocs-server-base))
   (when (emdocs-get-hash-table server)
       (maphash #'(lambda (client-socket cur-message)
                   (delete-process client-socket))
@@ -161,7 +173,7 @@
     (emdocs-log-message client "client started"))
   client)
 
-(defmethod emdocs-stop :before ((client emdocs-client-base)
+(defmethod emdocs-stop ((client emdocs-client-base)
                                &optional cleanup-socket)
   (when (process-status (emdocs-get-process-name client))
     (delete-process (emdocs-get-process client))
@@ -170,6 +182,14 @@
     ;; TODO: add better way to kill things
     ;; (kill-buffer (emdocs-get-log-buffer client))
     ))
+
+;;; attaches client to hash table and starts
+(defmethod emdocs-attach-and-tableify ((conn emdocs-connection-base) table)
+  (emdocs-initialize-client-table conn
+                                  (emdocs-get-global-client-table))
+  (puthash conn (emdocs-get-attached-buffer conn)
+           (emdocs-get-singleton-client-table conn))
+  (emdocs-start conn))
 
 (load-file "./emdocs-server-functions.el")
 (load-file "./emdocs-client-functions.el")

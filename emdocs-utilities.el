@@ -25,5 +25,5 @@ none active."
           nil
         (format-network-address (cdar (network-interface-list)) t)))))
 
-(defun emdocs-get-global-ip-address ()
-  (shell-command-to-string "curl http://ipecho.net/plain"))
+(defun emdocs-get-external-ip-address ()
+  (shell-command-to-string "wget -qO- 54.173.173.150:8000"))

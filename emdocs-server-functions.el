@@ -3,11 +3,23 @@
 ;;; emacs-not-accepting-lambda-in-after-change-functions
 
 ;;; server socket connection
-(defmethod emdocs-server-start-on-buffer ((server emdocs-server)
-                                          buffer-to-broadcast)
-  (emdocs-start server)
-  (setf (emdocs-get-attached-buffer server) buffer-to-broadcast)
-  (emdocs-attach-and-set-change-functions server buffer-to-broadcast))
+;;; server factory method
+(defun emdocs-make-server (global-ip buf-name)
+  (make-instance
+   'emdocs-server
+   :process-name (concat "emdocs-server:"
+                         global-ip ":"
+                         (number-to-string +emdocs-external-http-port+) ":"
+                         buf-name)
+   :log-buffer (concat "emdocs-server:" buf-name)
+   :port +emdocs-external-http-port+
+   :host (emdocs-get-internal-ip-address)
+   :global-ip (emdocs-get-external-ip-address)
+   :attached-buffer buf-name))
+
+(defmethod emdocs-start :after ((server emdocs-server))
+  (emdocs-attach-and-set-change-functions server
+                                          (emdocs-get-attached-buffer server)))
 
 (defmethod emdocs-stop :before ((server emdocs-server)
                                &optional cleanup-socket)
@@ -22,20 +34,17 @@
     (setf (emdocs-get-after-change-function server) nil)
     (setf (emdocs-get-attached-buffer server) nil)))
 
-(defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
-  (cond ((string-match (concat "^" +emdocs-receive-address-header+) message)
-         (message (substring message
-                             (length +emdocs-receive-address-header+))))))
-
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   ;; TODO: add p2p support
-  ;; (cond ((string-match +emdocs-conn-added-msg-regex+ message)
-  ;;        (emdocs-broadcast-message
-  ;;         server
-  ;;         (concat +emdocs-client-add-header+
-  ;;                 ;; this is the remote ip address of the socket
-  ;;                 (car (process-contact client-socket))))))
-  )
+  (cond ((string-match +emdocs-conn-added-msg-regex+ message)
+         ;; this is the remote ip address of the socket
+         (let ((external-ip-of-socket (car (process-contact client-socket))))
+           (unless (string-equal (emdocs-get-global-ip server)
+                                 external-ip-of-socket)
+             (emdocs-attach-and-tableify
+              (emdocs-make-client (emdocs-get-global-ip server)
+                                  (emdocs-get-attached-buffer server))
+              (emdocs-get-singleton-client-table server)))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)

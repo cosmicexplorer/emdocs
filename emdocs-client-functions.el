@@ -3,10 +3,19 @@
 ;;; emacs-not-accepting-lambda-in-after-change-functions
 
 ;;; client socket connection
-(defmethod emdocs-client-start-on-buffer ((client emdocs-client)
-                                          buffer-to-change)
-  (emdocs-start client)
-  (setf (emdocs-get-attached-buffer client) buffer-to-change))
+;;; client factory method
+(defun emdocs-make-client (global-ip buf-name)
+  (make-instance
+   'emdocs-client
+   :process-name (concat "emdocs-client:"
+                         global-ip ":"
+                         (number-to-string +emdocs-external-http-port+) ":"
+                         buf-name)
+   :log-buffer (concat "emdocs-client:" buf-name)
+   :port +emdocs-external-http-port+
+   :host ip-addr
+   :global-ip global-ip
+   :attached-buffer buf-name))
 
 (defmethod emdocs-stop :before ((client emdocs-client))
   (setf (emdocs-get-attached-buffer client) nil))

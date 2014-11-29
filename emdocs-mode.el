@@ -34,21 +34,17 @@
 (defun emdocs-connect (input-ip-address)
   (interactive "Mip address (RET for none): ")
   ;; input-ip-address is "" if not given
-  (let* ((base-proc-name (concat input-ip-address
-                                 ":"
-                                 (number-to-string +emdocs-external-http-port+)
-                                 ":"
-                                 (buffer-name)))
-         (base-buf-name (concat (buffer-name)))
-         (global-ip (emdocs-get-global-ip-address))
-         (server-to-add
+  (let ((global-ip (emdocs-get-external-ip-address))
+        (server-to-add
+         (emdocs-make-server)
           (make-instance
            'emdocs-server
            :process-name (concat "emdocs-server:" base-proc-name)
            :log-buffer (concat "emdocs-server:" base-buf-name)
            :port +emdocs-external-http-port+
            :host (emdocs-get-internal-ip-address)
-           :global-ip global-ip))
+           :global-ip global-ip
+           :attached-buffer (buffer-name)))
          (client-to-add
           (if (string-equal input-ip-address "")
               nil
@@ -58,18 +54,13 @@
              :log-buffer (concat "emdocs-client:" base-buf-name)
              :port +emdocs-external-http-port+
              :host input-ip-address
-             :global-ip global-ip))))
-    (puthash
-     server-to-add
-     (buffer-name)
-     (emdocs-get-global-server-table))
-    (emdocs-server-start-on-buffer server-to-add (buffer-name))
+             :global-ip global-ip
+             :attached-buffer (buffer-name)))))
+    (emdocs-attach-and-tableify server-to-add
+                                (emdocs-get-global-client-table))
     (when client-to-add
-      (puthash
-       client-to-add
-       (buffer-name)
-       (emdocs-get-global-client-table))
-      (emdocs-client-start-on-buffer client-to-add (buffer-name)))))
+      (emdocs-attach-and-tableify client-to-add
+                                  (emdocs-get-global-client-table)))))
 
 ;;; TODO: remove after debugging!!!!
 ;;; debugging functions for single-client single-server model
