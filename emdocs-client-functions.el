@@ -4,13 +4,11 @@
 
 ;;; client socket connection
 (defmethod emdocs-client-start-on-buffer ((client emdocs-client)
-                                          buffer-to-change
-                                          self-socket)
-  (emdocs-start client self-socket)
+                                          buffer-to-change)
+  (emdocs-start client)
   (setf (emdocs-get-attached-buffer client) buffer-to-change))
 
-(defmethod emdocs-stop :before ((client emdocs-client)
-                               &optional cleanup-socket)
+(defmethod emdocs-stop :before ((client emdocs-client))
   (setf (emdocs-get-attached-buffer client) nil))
 
 (defmethod emdocs-filter :after ((client emdocs-client)
@@ -27,7 +25,7 @@
           ;; ((string-match (concat "^" +emdocs-client-add-header+) message)
           ;;  (process-send-string server-socket
           ;;                       (concat +emdocs-client-add-header+
-          ;;                               (emdocs-get-global-ip-address))))
+          ;;                               (emdocs-get-internal-ip-address))))
           )))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)

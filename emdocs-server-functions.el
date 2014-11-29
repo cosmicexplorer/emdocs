@@ -4,9 +4,8 @@
 
 ;;; server socket connection
 (defmethod emdocs-server-start-on-buffer ((server emdocs-server)
-                                          buffer-to-broadcast
-                                          self-socket)
-  (emdocs-start server self-socket)
+                                          buffer-to-broadcast)
+  (emdocs-start server)
   (setf (emdocs-get-attached-buffer server) buffer-to-broadcast)
   (emdocs-attach-and-set-change-functions server buffer-to-broadcast))
 

@@ -4,25 +4,8 @@
 
 ;;; singletons
 ;;; TODO: assuming no concurrent access
-(let ((emdocs-self-socket nil)
-      (emdocs-server-table nil)
+(let ((emdocs-server-table nil)
       (emdocs-client-table nil))
-  (defconst +emdocs-self-socket-process-name+
-    (concat
-     "emdocs-self-socket"
-     ":"
-     (number-to-string +emdocs-internal-http-port+)))
-  (defconst +emdocs-self-socket-log-buffer+ +emdocs-self-socket-process-name+)
-  (defun emdocs-get-global-self-socket ()
-    (if emdocs-self-socket
-        emdocs-self-socket
-      (setq emdocs-self-socket
-            (make-instance
-             'emdocs-server
-             :process-name +emdocs-self-socket-process-name+
-             :log-buffer +emdocs-self-socket-log-buffer+
-             :port +emdocs-internal-http-port+))
-      (emdocs-start emdocs-self-socket emdocs-self-socket)))
   (defun emdocs-get-global-server-table ()
     (if emdocs-server-table
         emdocs-server-table
@@ -45,10 +28,7 @@
                   (emdocs-stop client-obj))
                emdocs-client-table)
       (clrhash emdocs-client-table)
-      (setq emdocs-client-table nil))
-    (when emdocs-self-socket
-      (emdocs-stop emdocs-self-socket)
-      (setq emdocs-self-socket nil))))
+      (setq emdocs-client-table nil))))
 
 ;;; integration functions
 (defun emdocs-connect (input-ip-address)
@@ -60,13 +40,15 @@
                                  ":"
                                  (buffer-name)))
          (base-buf-name (concat (buffer-name)))
+         (global-ip (emdocs-get-global-ip-address))
          (server-to-add
           (make-instance
            'emdocs-server
            :process-name (concat "emdocs-server:" base-proc-name)
            :log-buffer (concat "emdocs-server:" base-buf-name)
-           :host (emdocs-get-global-ip-address)
-           :port +emdocs-external-http-port+))
+           :port +emdocs-external-http-port+
+           :host (emdocs-get-internal-ip-address)
+           :global-ip global-ip))
          (client-to-add
           (if (string-equal input-ip-address "")
               nil
@@ -75,20 +57,19 @@
              :process-name (concat "emdocs-client:" base-proc-name)
              :log-buffer (concat "emdocs-client:" base-buf-name)
              :port +emdocs-external-http-port+
-             :address-connecting-to input-ip-address))))
+             :host input-ip-address
+             :global-ip global-ip))))
     (puthash
      server-to-add
      (buffer-name)
      (emdocs-get-global-server-table))
-    (emdocs-server-start-on-buffer server-to-add (buffer-name)
-                                   (emdocs-get-global-self-socket))
-    (unless (string-equal input-ip-address "")
+    (emdocs-server-start-on-buffer server-to-add (buffer-name))
+    (when client-to-add
       (puthash
        client-to-add
        (buffer-name)
        (emdocs-get-global-client-table))
-      (emdocs-client-start-on-buffer client-to-add (buffer-name)
-                                     (emdocs-get-global-self-socket)))))
+      (emdocs-client-start-on-buffer client-to-add (buffer-name)))))
 
 ;;; TODO: remove after debugging!!!!
 ;;; debugging functions for single-client single-server model

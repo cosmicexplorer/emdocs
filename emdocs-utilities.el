@@ -14,7 +14,7 @@
 (defconst emdocs-delete-edit "delete")
 (defconst emdocs-indel-edit "indel")
 
-(defun emdocs-get-global-ip-address (&optional device-name)
+(defun emdocs-get-internal-ip-address (&optional device-name)
   "Returns ip address of active interface, ignoring loopback. Returns nil if
 none active."
   (if device-name
@@ -24,3 +24,6 @@ none active."
       (if (string-equal (caar network-interfaces) "lo")
           nil
         (format-network-address (cdar (network-interface-list)) t)))))
+
+(defun emdocs-get-global-ip-address ()
+  (shell-command-to-string "wget -qO- http://ipecho.net/plain"))

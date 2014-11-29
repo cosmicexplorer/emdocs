@@ -6,9 +6,9 @@
 ;;;
 ;;;                  (emdocs-attached-buffer-base) (see comments below)
 ;;;                                         \     \
-;;;                                          \     emdocs-server
-;;;                           emdocs-server-base <
-;;;                         /                   \  emdocs-self-server
+;;;                                          \     \
+;;;                           emdocs-server-base - emdocs-server
+;;;                         /                   \
 ;;; emdocs-connection-base <                     \
 ;;;                          emdocs-client-base - emdocs-client
 ;;;
@@ -30,30 +30,19 @@
    (port
     :initarg :port
     :accessor emdocs-get-port)
-   (self-socket
-    :accessor emdocs-get-self-socket
-    :allocation :class)))
+   (host
+    :initarg :host
+    :accessor emdocs-get-host)
+   (global-ip
+    :initarg :global-ip
+    :accessor emdocs-get-global-ip)))
 
 (defclass emdocs-server-base (emdocs-connection-base)
   ((client-hash-table
     :initform nil
-    :accessor emdocs-get-hash-table)
-   (host
-    :initform nil
-    :initarg :host
-    :accessor emdocs-get-host)))
+    :accessor emdocs-get-hash-table)))
 
-(defclass emdocs-client-base (emdocs-connection-base)
-  ((address-connecting-to
-    :initform nil
-    :initarg :address-connecting-to
-    :accessor emdocs-get-address-connecting-to)))
-
-(defclass emdocs-self-server (emdocs-server-base)
-  ((host
-    :initform 'local))
-  (:documentation "Typically, one does not use the inherited initarg, and uses
-  the default of 'local."))
+(defclass emdocs-client-base (emdocs-connection-base) ())
 
 ;;; TODO: change attached-buffer to multiply inherit from a base class;
 ;;; would normally inherit from attached-buffer-base, but can't figure out
@@ -74,10 +63,6 @@
      :accessor emdocs-get-attached-buffer)))
 
 ;;; base functions
-(defgeneric emdocs-filter (socket-obj socket message))
-(defgeneric emdocs-sentinel (socket-obj socket message))
-(defgeneric emdocs-log-message (socket-obj socket message))
-
 (defmethod emdocs-filter ((socket-obj emdocs-connection-base)
                           socket
                           message)
@@ -99,17 +84,9 @@
      string)
     (unless (bolp) (newline))))
 
-;;; WARNING: these deal with class variables!
-(defmethod emdocs-start ((socket-obj emdocs-connection-base) self-socket)
-  (unless self-socket
-    (setf (emdocs-get-self-socket socket-obj) self-socket)))
-(defmethod emdocs-stop ((socket-obj emdocs-connection-base)
-                        &optional cleanup-socket)
-  (when cleanup-socket
-    (setf (emdocs-get-self-socket socket-obj) nil)))
 
 ;;; server functions
-(defmethod emdocs-start :after ((server emdocs-server-base) self-socket)
+(defmethod emdocs-start :after ((server emdocs-server-base))
   (unless (process-status (emdocs-get-process-name server))
     (setf (emdocs-get-hash-table server)
           (make-hash-table :test 'eq :weakness nil))
@@ -166,15 +143,14 @@
            (emdocs-get-hash-table server)))
 
 ;;; client functions
-(defmethod emdocs-start :after ((client emdocs-client-base)
-                                self-socket)
+(defmethod emdocs-start :after ((client emdocs-client-base))
   (unless (process-status (emdocs-get-process-name client))
     (setf (emdocs-get-process client)
           (make-network-process
            :name (emdocs-get-process-name client)
            :buffer (emdocs-get-log-buffer client)
            :family 'ipv4
-           :host (emdocs-get-address-connecting-to client)
+           :host (emdocs-get-host client)
            :service (emdocs-get-port client)
            :sentinel #'(lambda (sock msg)
                          (emdocs-sentinel client sock msg))
