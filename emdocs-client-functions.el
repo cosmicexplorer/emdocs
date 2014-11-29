@@ -4,7 +4,7 @@
 
 ;;; client socket connection
 ;;; client factory method
-(defun emdocs-make-client (global-ip buf-name)
+(defun emdocs-make-client (global-ip host buf-name)
   (make-instance
    'emdocs-client
    :process-name (concat "emdocs-client:"
@@ -13,7 +13,7 @@
                          buf-name)
    :log-buffer (concat "emdocs-client:" buf-name)
    :port +emdocs-external-http-port+
-   :host ip-addr
+   :host host
    :global-ip global-ip
    :attached-buffer buf-name))
 
