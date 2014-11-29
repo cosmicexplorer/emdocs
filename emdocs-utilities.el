@@ -26,4 +26,4 @@ none active."
         (format-network-address (cdar (network-interface-list)) t)))))
 
 (defun emdocs-get-global-ip-address ()
-  (shell-command-to-string "wget -qO- http://ipecho.net/plain"))
+  (shell-command-to-string "curl http://ipecho.net/plain"))
