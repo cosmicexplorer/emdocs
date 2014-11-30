@@ -173,8 +173,7 @@
     (emdocs-log-message client "client started"))
   client)
 
-(defmethod emdocs-stop ((client emdocs-client-base)
-                               &optional cleanup-socket)
+(defmethod emdocs-stop ((client emdocs-client-base))
   (when (process-status (emdocs-get-process-name client))
     (delete-process (emdocs-get-process client))
     (setf (emdocs-get-process client) nil)

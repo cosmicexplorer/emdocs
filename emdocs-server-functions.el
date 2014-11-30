@@ -21,8 +21,7 @@
   (emdocs-attach-and-set-change-functions server
                                           (emdocs-get-attached-buffer server)))
 
-(defmethod emdocs-stop :before ((server emdocs-server)
-                               &optional cleanup-socket)
+(defmethod emdocs-stop :before ((server emdocs-server))
   (when (emdocs-get-after-change-function server)
     (with-current-buffer (emdocs-get-attached-buffer server)
       (setq-local after-change-functions
@@ -36,16 +35,18 @@
 
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   ;; TODO: add p2p support
-  (cond ((string-match +emdocs-conn-added-msg-regex+ message)
-         ;; this is the remote ip address of the socket
-         (let ((external-ip-of-socket (car (process-contact client-socket))))
-           (unless (string-equal (emdocs-get-global-ip server)
-                                 external-ip-of-socket)
-             (emdocs-attach-and-tableify
-              (emdocs-make-client (emdocs-get-global-ip server)
-                                  external-ip-of-socket
-                                  (emdocs-get-attached-buffer server))
-              (emdocs-get-singleton-client-table server)))))))
+  ;; (cond ((string-match +emdocs-conn-added-msg-regex+ message)
+  ;;        (let ((external-ip-of-socket
+  ;;               ;; this is the remote ip address of the socket
+  ;;               (car (process-contact client-socket))))
+  ;;          (unless (string-equal (emdocs-get-global-ip server)
+  ;;                                external-ip-of-socket)
+  ;;            (emdocs-attach-and-tableify
+  ;;             (emdocs-make-client (emdocs-get-global-ip server)
+  ;;                                 external-ip-of-socket
+  ;;                                 (emdocs-get-attached-buffer server))
+  ;;             (emdocs-get-singleton-client-table server))))))
+  )
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
