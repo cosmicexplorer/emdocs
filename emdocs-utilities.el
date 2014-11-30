@@ -24,4 +24,5 @@ none active."
         (format-network-address (cdar (network-interface-list)) t)))))
 
 (defun emdocs-get-external-ip-address ()
+  "Checks the ec2 instance running a node server just for this purpose."
   (shell-command-to-string "wget -qO- 54.173.173.150:8000"))

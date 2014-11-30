@@ -42,8 +42,7 @@
                                         (buffer-string))))
          (let ((external-ip-of-socket
                 ;; this is the remote ip address of the socket
-                (message                ; debugging
-                 (car (process-contact client-socket)))))
+                (car (process-contact client-socket))))
            (unless (string-equal (emdocs-get-global-ip server)
                                  external-ip-of-socket)
              (emdocs-attach-and-tableify
