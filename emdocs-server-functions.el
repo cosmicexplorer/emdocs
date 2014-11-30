@@ -34,22 +34,23 @@
     (setf (emdocs-get-attached-buffer server) nil)))
 
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
-  ;; TODO: add p2p support
+  ;; TODO: make this only occur the first time a client enters the network
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
          (with-current-buffer (emdocs-get-attached-buffer server)
            (process-send-string client-socket
                                 (concat +emdocs-send-file-header+
                                         (buffer-string))))
-         ;; (let ((external-ip-of-socket
-         ;;        ;; this is the remote ip address of the socket
-         ;;        (car (process-contact client-socket))))
-         ;;   (unless (string-equal (emdocs-get-global-ip server)
-         ;;                         external-ip-of-socket)
-         ;;     (emdocs-attach-and-tableify
-         ;;      (emdocs-make-client (emdocs-get-global-ip server)
-         ;;                          external-ip-of-socket
-         ;;                          (emdocs-get-attached-buffer server))
-         ;;      (emdocs-get-singleton-client-table server))))
+         (let ((external-ip-of-socket
+                ;; this is the remote ip address of the socket
+                (message                ; debugging
+                 (car (process-contact client-socket)))))
+           (unless (string-equal (emdocs-get-global-ip server)
+                                 external-ip-of-socket)
+             (emdocs-attach-and-tableify
+              (emdocs-make-client (emdocs-get-global-ip server)
+                                  external-ip-of-socket
+                                  (emdocs-get-attached-buffer server))
+              (emdocs-get-singleton-client-table server))))
          )))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
