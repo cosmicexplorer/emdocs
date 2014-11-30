@@ -30,12 +30,12 @@
             client
             ;; get message minus header
             (substring message (length +emdocs-edit-msg-header+))))
-          ;; TODO: add p2p support
-          ;; ((string-match (concat "^" +emdocs-client-add-header+) message)
-          ;;  (process-send-string server-socket
-          ;;                       (concat +emdocs-client-add-header+
-          ;;                               (emdocs-get-internal-ip-address))))
-          )))
+          ((string-match (concat "^" +emdocs-send-file-header+) message)
+           (with-current-buffer (emdocs-get-attached-buffer client)
+             (erase-buffer)
+             (insert
+              (substring message (length +emdocs-send-file-header+)))
+             (goto-char (point-min)))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))

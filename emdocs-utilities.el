@@ -6,9 +6,7 @@
 (defconst +emdocs-conn-added-msg-regex+ "^open from")
 
 (defconst +emdocs-edit-msg-header+ "EDIT_MSG")
-(defconst +emdocs-ask-for-address-header+ "ASK_ADDR")
-(defconst +emdocs-receive-address-header+ "REC_ADDR")
-(defconst +emdocs-client-add-header+ "CLIENT_ADD")
+(defconst +emdocs-send-file-header+ "SEND_FILE")
 
 (defconst emdocs-insert-edit "insert")
 (defconst emdocs-delete-edit "delete")
