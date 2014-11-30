@@ -23,19 +23,18 @@
 (defmethod emdocs-filter :after ((client emdocs-client)
                                  server-socket
                                  message)
-  (when (emdocs-get-attached-buffer client)
-    ;; mux based on header
-    (cond ((string-match (concat "^" +emdocs-edit-msg-header+) message)
-           (emdocs-receive-keypress
-            client
-            ;; get message minus header
-            (substring message (length +emdocs-edit-msg-header+))))
-          ((string-match (concat "^" +emdocs-send-file-header+) message)
-           (with-current-buffer (emdocs-get-attached-buffer client)
-             (erase-buffer)
-             (insert
-              (substring message (length +emdocs-send-file-header+)))
-             (goto-char (point-min)))))))
+  ;; mux based on header
+  (cond ((string-match (concat "^" +emdocs-edit-msg-header+) message)
+         (emdocs-receive-keypress
+          client
+          ;; get message minus header
+          (substring message (length +emdocs-edit-msg-header+))))
+        ((string-match (concat "^" +emdocs-send-file-header+) message)
+         (with-current-buffer (emdocs-get-attached-buffer client)
+           (erase-buffer)
+           (insert
+            (substring message (length +emdocs-send-file-header+)))
+           (goto-char (point-min))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))

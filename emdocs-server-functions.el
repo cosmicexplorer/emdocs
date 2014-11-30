@@ -36,9 +36,10 @@
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   ;; TODO: add p2p support
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
-         (process-send-string client-socket
-                              (concat +emdocs-send-file-header+
-                                      (buffer-string)))
+         (with-current-buffer (emdocs-get-attached-buffer server)
+           (process-send-string client-socket
+                                (concat +emdocs-send-file-header+
+                                        (buffer-string))))
          ;; (let ((external-ip-of-socket
          ;;        ;; this is the remote ip address of the socket
          ;;        (car (process-contact client-socket))))
