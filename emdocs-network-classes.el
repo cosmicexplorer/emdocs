@@ -13,7 +13,10 @@
 ;;;                          emdocs-client-base - emdocs-client
 ;;;
 
-(load-file "./emdocs-utilities.el")
+(load-file
+ (concat
+  (file-name-directory load-file-name)
+  "/emdocs-utilities.el"))
 
 (defclass emdocs-connection-base ()
   ((process
@@ -190,5 +193,11 @@
            (emdocs-get-singleton-client-table conn))
   (emdocs-start conn))
 
-(load-file "./emdocs-server-functions.el")
-(load-file "./emdocs-client-functions.el")
+(load-file
+ (concat
+  (file-name-directory load-file-name)
+  "/emdocs-server-functions.el"))
+(load-file
+ (concat
+  (file-name-directory load-file-name)
+  "/emdocs-client-functions.el"))

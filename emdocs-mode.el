@@ -1,9 +1,8 @@
 ;; -*- lexical-binding: t; -*-
-;;; keypress notifications
-(require 'eieio)                        ;for classes
-(require 'cl)                           ;for loop
-
-(load-file "./emdocs-network-classes.el")
+(load-file
+ (concat                                ; all the heavy lifting
+  (file-name-directory load-file-name)
+  "/emdocs-network-classes.el"))
 
 ;;; singletons
 ;;; TODO: assuming no concurrent access
@@ -32,8 +31,6 @@
                emdocs-client-table)
       (clrhash emdocs-client-table)
       (setq emdocs-client-table nil))))
-
-(hash-table-count (emdocs-get-global-server-table))
 
 ;;; integration functions
 (defun emdocs-connect (input-ip-address)

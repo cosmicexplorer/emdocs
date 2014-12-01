@@ -1,6 +1,9 @@
 ;; -*- lexical-binding: t; -*-
+(require 'eieio)                        ; for classes
+(require 'cl)                           ; for loop
+(require 'json)                         ; for json-{en,de}code
+
 (defconst +emdocs-external-http-port+ 8080)
-(defconst +emdocs-internal-http-port+ 8081)
 
 (defconst +emdocs-conn-broken-msg-regex+ "^connection broken by remote peer")
 (defconst +emdocs-conn-added-msg-regex+ "^open from")
@@ -10,7 +13,6 @@
 
 (defconst emdocs-insert-edit "insert")
 (defconst emdocs-delete-edit "delete")
-(defconst emdocs-indel-edit "indel")
 
 (defun emdocs-get-internal-ip-address (&optional device-name)
   "Returns ip address of active interface, ignoring loopback. Returns nil if

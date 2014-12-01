@@ -31,10 +31,11 @@
           (substring message (length +emdocs-edit-msg-header+))))
         ((string-match (concat "^" +emdocs-send-file-header+) message)
          (with-current-buffer (emdocs-get-attached-buffer client)
-           (erase-buffer)
-           (insert
-            (substring message (length +emdocs-send-file-header+)))
-           (goto-char (point-min))))))
+           (let ((prev-point (point)))
+             (erase-buffer)
+             (insert
+              (substring message (length +emdocs-send-file-header+)))
+             (goto-char prev-point))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))
@@ -50,12 +51,13 @@
         (content (plist-get json-message :content)))
     (with-current-buffer (emdocs-get-attached-buffer client)
       (save-excursion
-        (cond
-         ((string-equal type emdocs-insert-edit)
-          (goto-char point)
-          (insert content))
-         ((string-equal type emdocs-delete-edit)
-          (goto-char point)
-          (delete-char content))
-         (t
-          (throw 'unrecognized-op t)))))))
+        (setq-local emdocs-is-network-insert t)
+        (unwind-protect
+            (cond
+             ((string-equal type emdocs-insert-edit)
+              (goto-char point)
+              (insert content))
+             ((string-equal type emdocs-delete-edit)
+              (goto-char point)
+              (delete-char content)))
+          (setq-local emdocs-is-network-insert nil))))))
