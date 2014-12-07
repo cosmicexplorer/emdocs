@@ -32,15 +32,13 @@
     (setf (emdocs-get-after-change-function server) nil)
     (setf (emdocs-get-attached-buffer server) nil)))
 
-(defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
-  ;; TODO: make this only occur the first time a client enters the network
-  (cond ((string-match +emdocs-conn-added-msg-regex+ message)
-         (with-current-buffer (emdocs-get-attached-buffer server)
-           (process-send-string client-socket
-                                (concat +emdocs-send-file-header+
-                                        (buffer-string))))
-         (let ((external-ip-of-socket
-                (car (process-contact client-socket))))
+(defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
+  (let* ((json-object-type 'plist)
+         (json-message (json-read-from-string message)))
+    (cond ((string-equal (plist-get json-message :message_type)
+                         +emdocs-send-ip-header+)
+           (let ((external-ip-of-socket
+                  (plist-get json-message :content)))
            (unless (or (string-equal (emdocs-get-global-ip server)
                                      external-ip-of-socket)
                        (string-equal (emdocs-get-host server)
@@ -49,7 +47,12 @@
               (emdocs-make-client (emdocs-get-global-ip server)
                                   external-ip-of-socket
                                   (emdocs-get-attached-buffer server))
-              (emdocs-get-singleton-client-table server)))))))
+              (emdocs-get-singleton-client-table server))
+             (emdocs-broadcast-message
+              server
+              (json-encode
+               `(,:message_type ,+emdocs-add-client-header+
+                 ,:content ,external-ip-of-socket)))))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
@@ -70,10 +73,10 @@ server."
 other users on the network."
   (emdocs-broadcast-message
    server
-   (concat
-    +emdocs-edit-msg-header+
-    (json-encode `(,:type ,type ,:point ,point ,:content ,content))
-    "\n")))
+   (json-encode `(,:message_type ,+emdocs-edit-msg-header+
+                                 ,:edit_type ,type
+                                 ,:point ,point
+                                 ,:content ,content))))
 
 (defmethod emdocs-attach-and-set-change-functions ((server emdocs-server))
   "Adds appropriate after-change-functions to the given name-of-buffer."

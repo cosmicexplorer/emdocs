@@ -10,6 +10,8 @@
 
 (defconst +emdocs-edit-msg-header+ "EDIT_MSG")
 (defconst +emdocs-send-file-header+ "SEND_FILE")
+(defconst +emdocs-send-ip-header+ "SEND_IP")
+(defconst +emdocs-add-client-header+ "ADD_CLIENT")
 
 (defconst emdocs-insert-edit "insert")
 (defconst emdocs-delete-edit "delete")
@@ -27,4 +29,4 @@ none active."
 
 (defun emdocs-get-external-ip-address ()
   "Checks the ec2 instance running a node server just for this purpose."
-  (shell-command-to-string "wget -qO- 54.173.173.150:8000"))
+  (shell-command-to-string "wget -qO- 54.174.66.203:8000"))

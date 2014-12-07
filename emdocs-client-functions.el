@@ -17,6 +17,12 @@
    :global-ip global-ip
    :attached-buffer buf-name))
 
+(defmethod emdocs-start :after ((client emdocs-client))
+  (emdocs-client-send-message client
+   (json-encode
+    `(,:message_type ,+emdocs-send-ip-header+
+      ,:content ,(emdocs-get-global-ip client)))))
+
 (defmethod emdocs-stop :before ((client emdocs-client))
   (setf (emdocs-get-attached-buffer client) nil))
 
@@ -24,29 +30,38 @@
                                  server-socket
                                  message)
   ;; mux based on header
-  (cond ((string-match (concat "^" +emdocs-edit-msg-header+) message)
-         (emdocs-receive-keypress
-          client
-          ;; get message minus header
-          (substring message (length +emdocs-edit-msg-header+))))
-        ((string-match (concat "^" +emdocs-send-file-header+) message)
-         (with-current-buffer (emdocs-get-attached-buffer client)
-           (let ((prev-point (point)))
-             (erase-buffer)
-             (insert
-              (substring message (length +emdocs-send-file-header+)))
-             (goto-char prev-point))))))
+  (let* ((json-object-type 'plist)
+         (json-message (json-read-from-string message)))
+    (cond ((string-equal (plist-get json-message :message_type)
+                         +emdocs-edit-msg-header+)
+           (emdocs-edit-from-json
+            client
+            json-message))
+          ((string-equal (plist-get json-message :message_type)
+                         +emdocs-send-file-header+)
+           (with-current-buffer (emdocs-get-attached-buffer client)
+             (let ((prev-point (point)))
+               (erase-buffer)
+               (insert (plist-get json-message :content))
+               (goto-char prev-point))))
+          ((string-equal (plist-get json-message :message_type)
+                         +emdocs-add-client-header+)
+           (unless (or (string-equal (emdocs-get-global-ip client)
+                                     (plist-get json-message :content))
+                       (string-equal (emdocs-get-host client)
+                                     (plist-get json-message :content)))
+             (emdocs-attach-and-tableify
+              (emdocs-make-client (emdocs-get-global-ip client)
+                                  (plist-get json-message :content)
+                                  (emdocs-get-attached-buffer client))
+              (emdocs-get-singleton-client-table client)))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))
 
-(defmethod emdocs-receive-keypress ((client emdocs-client) message)
-  (let ((json-object-type 'plist))
-    (emdocs-edit-from-json client (json-read-from-string message))))
-
 (require 'json)
 (defmethod emdocs-edit-from-json ((client emdocs-client) json-message)
-  (let ((type (plist-get json-message :type))
+  (let ((type (plist-get json-message :edit_type))
         (point (plist-get json-message :point))
         (content (plist-get json-message :content)))
     (with-current-buffer (emdocs-get-attached-buffer client)
