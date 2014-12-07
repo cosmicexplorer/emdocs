@@ -47,12 +47,7 @@
               (emdocs-make-client (emdocs-get-global-ip server)
                                   external-ip-of-socket
                                   (emdocs-get-attached-buffer server))
-              (emdocs-get-singleton-client-table server))
-             (emdocs-broadcast-message
-              server
-              (json-encode
-               `(,:message_type ,+emdocs-add-client-header+
-                 ,:content ,external-ip-of-socket)))))))))
+              (emdocs-get-singleton-client-table server))))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
