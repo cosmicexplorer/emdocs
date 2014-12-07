@@ -39,15 +39,15 @@
                          +emdocs-send-ip-header+)
            (let ((external-ip-of-socket
                   (plist-get json-message :content)))
-           (unless (or (string-equal (emdocs-get-global-ip server)
-                                     external-ip-of-socket)
-                       (string-equal (emdocs-get-host server)
-                                     external-ip-of-socket))
-             (emdocs-attach-and-tableify
-              (emdocs-make-client (emdocs-get-global-ip server)
-                                  external-ip-of-socket
-                                  (emdocs-get-attached-buffer server))
-              (emdocs-get-singleton-client-table server))))))))
+             (unless (or (string-equal (emdocs-get-global-ip server)
+                                       external-ip-of-socket)
+                         (string-equal (emdocs-get-host server)
+                                       external-ip-of-socket))
+               (emdocs-attach-and-tableify
+                (emdocs-make-client (emdocs-get-global-ip server)
+                                    external-ip-of-socket
+                                    (emdocs-get-attached-buffer server))
+                (emdocs-get-singleton-client-table server))))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)

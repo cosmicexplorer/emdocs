@@ -13,6 +13,9 @@
 (defconst +emdocs-send-ip-header+ "SEND_IP")
 (defconst +emdocs-add-client-header+ "ADD_CLIENT")
 
+;;; number of messages until buffer sent over
+(defconst +emdocs-num-messages-to-refresh+ 100)
+
 (defconst emdocs-insert-edit "insert")
 (defconst emdocs-delete-edit "delete")
 
