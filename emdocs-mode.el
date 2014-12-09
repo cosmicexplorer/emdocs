@@ -48,11 +48,9 @@
           (if (string-equal input-ip-address "")
               nil
             (emdocs-make-client global-ip input-ip-address (buffer-name)))))
-    (emdocs-attach-and-tableify server-to-add
-                                (emdocs-get-global-client-table))
+    (emdocs-attach-and-tableify server-to-add)
     (when client-to-add
-      (emdocs-attach-and-tableify client-to-add
-                                  (emdocs-get-global-client-table)))))
+      (emdocs-attach-and-tableify client-to-add))))
 
 ;;; debugging functions for single-client single-server model
 (defun emdocs-get-server ()

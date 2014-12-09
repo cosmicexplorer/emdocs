@@ -187,7 +187,7 @@
     ))
 
 ;;; attaches client to hash table and starts
-(defmethod emdocs-attach-and-tableify ((conn emdocs-connection-base) table)
+(defmethod emdocs-attach-and-tableify ((conn emdocs-connection-base))
   (emdocs-initialize-client-table conn
                                   (emdocs-get-global-client-table))
   (puthash conn (emdocs-get-attached-buffer conn)
