@@ -37,7 +37,14 @@
              (let ((prev-point (point)))
                (erase-buffer)
                (insert (plist-get json-message :content))
-               (goto-char prev-point)))))))
+               (goto-char prev-point))))
+          ((string-equal (plist-get json-message :message_type)
+                         +emdocs-add-client-header+)
+           (process-send-string
+            server-socket
+            (json-encode
+             `(,:message_type ,+emdocs-send-ip-header+
+               ,:content (emdocs-get-global-ip client))))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))

@@ -32,12 +32,27 @@
     (setf (emdocs-get-after-change-function server) nil)
     (setf (emdocs-get-attached-buffer server) nil)))
 
+(defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
+  (let* ((json-object-type 'plist)
+         (json-message (json-read-from-string message)))
+    (cond ((string-equal (plist-get json-message :message_type)
+                         +emdocs-send-ip-header+)
+           (emdocs-attach-and-tableify
+            (emdocs-make-client
+             (emdocs-get-global-ip server)
+             (plist-get json-message :content)
+             (emdocs-get-attached-buffer server)))))))
+
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
          (emdocs-broadcast-message server
           (json-encode
            `(,:message_type ,+emdocs-send-file-header+
-             ,:content ,(buffer-string)))))))
+             ,:content ,(buffer-string))))
+         (process-send-string
+          client-socket
+          (json-encode
+           `(,:message_type ,+emdocs-add-client-header+))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
