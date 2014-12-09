@@ -34,7 +34,7 @@
 
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
-         (emdocs-broadcast-message
+         (emdocs-broadcast-message server
           (json-encode
            `(,:message_type ,+emdocs-send-file-header+
              ,:content ,(buffer-string)))))))
