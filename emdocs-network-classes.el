@@ -30,6 +30,7 @@
     :initarg :log-buffer
     :initform nil
     :accessor emdocs-get-log-buffer)
+
    (port
     :initarg :port
     :accessor emdocs-get-port)

@@ -32,22 +32,12 @@
     (setf (emdocs-get-after-change-function server) nil)
     (setf (emdocs-get-attached-buffer server) nil)))
 
-(defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
-  (let* ((json-object-type 'plist)
-         (json-message (json-read-from-string message)))
-    (cond ((string-equal (plist-get json-message :message_type)
-                         +emdocs-send-ip-header+)
-           (let ((external-ip-of-socket
-                  (plist-get json-message :content)))
-             (unless (or (string-equal (emdocs-get-global-ip server)
-                                       external-ip-of-socket)
-                         (string-equal (emdocs-get-host server)
-                                       external-ip-of-socket))
-               (emdocs-attach-and-tableify
-                (emdocs-make-client (emdocs-get-global-ip server)
-                                    external-ip-of-socket
-                                    (emdocs-get-attached-buffer server))
-                (emdocs-get-singleton-client-table server))))))))
+(defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
+  (cond ((string-match +emdocs-conn-added-msg-regex+ message)
+         (emdocs-broadcast-message
+          (json-encode
+           `(,:message_type ,+emdocs-send-file-header+
+             ,:content ,(buffer-string)))))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
@@ -69,9 +59,9 @@ other users on the network."
   (emdocs-broadcast-message
    server
    (json-encode `(,:message_type ,+emdocs-edit-msg-header+
-                                 ,:edit_type ,type
-                                 ,:point ,point
-                                 ,:content ,content))))
+                  ,:edit_type ,type
+                  ,:point ,point
+                  ,:content ,content))))
 
 (defmethod emdocs-attach-and-set-change-functions ((server emdocs-server))
   "Adds appropriate after-change-functions to the given name-of-buffer."

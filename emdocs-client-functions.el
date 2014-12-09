@@ -17,12 +17,6 @@
    :global-ip global-ip
    :attached-buffer buf-name))
 
-(defmethod emdocs-start :after ((client emdocs-client))
-  (emdocs-client-send-message client
-   (json-encode
-    `(,:message_type ,+emdocs-send-ip-header+
-      ,:content ,(emdocs-get-global-ip client)))))
-
 (defmethod emdocs-stop :before ((client emdocs-client))
   (setf (emdocs-get-attached-buffer client) nil))
 

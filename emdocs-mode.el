@@ -4,6 +4,10 @@
   (file-name-directory load-file-name)
   "/emdocs-network-classes.el"))
 
+(define-minor-mode emdocs-mode
+  "Buffer-local minor mode for collaboratively editing buffers over the
+  internet.")
+
 ;;; singletons
 ;;; TODO: assuming no concurrent access
 (let ((emdocs-server-table nil)
@@ -36,6 +40,7 @@
 (defun emdocs-connect (input-ip-address)
   (interactive "Mip address (RET for none): ")
   ;; input-ip-address is "" if not given
+  (emdocs-mode)
   (let* ((global-ip (emdocs-get-external-ip-address))
          (server-to-add
           (emdocs-make-server global-ip (buffer-name)))
@@ -49,9 +54,8 @@
       (emdocs-attach-and-tableify client-to-add
                                   (emdocs-get-global-client-table)))))
 
-;;; TODO: remove after debugging!!!!
 ;;; debugging functions for single-client single-server model
-(defun get-server ()
+(defun emdocs-get-server ()
   (if (= (hash-table-count (emdocs-get-global-server-table)) 1)
       (let ((single-server nil))
         (maphash #'(lambda (serv buf)
@@ -59,7 +63,7 @@
                  (emdocs-get-global-server-table))
         single-server)
     (throw 'not-helpful t)))
-(defun get-client ()
+(defun emdocs-get-client ()
   (if (= (hash-table-count (emdocs-get-global-client-table)) 1)
       (let ((single-client nil))
         (maphash #'(lambda (cli buf)
@@ -70,6 +74,7 @@
 
 (defun emdocs-disconnect ()
   (interactive)
+  (emdocs-mode 0)
   (let ((servers-to-disconnect nil))
     (maphash #'(lambda (serv-obj buf-name)
                  (when (string-equal (buffer-name)
