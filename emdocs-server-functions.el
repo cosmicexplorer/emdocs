@@ -41,7 +41,8 @@
             (emdocs-make-client
              (emdocs-get-global-ip server)
              (plist-get json-message :content)
-             (emdocs-get-attached-buffer server)))))))
+             (emdocs-get-attached-buffer server))
+            (emdocs-get-global-client-table))))))
 
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
