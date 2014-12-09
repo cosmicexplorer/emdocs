@@ -40,8 +40,8 @@
                (goto-char prev-point))))
           ((string-equal (plist-get json-message :message_type)
                          +emdocs-add-client-header+)
-           (process-send-string
-            server-socket
+           (emdocs-client-send-message
+            client
             (json-encode
              `(,:message_type ,+emdocs-send-ip-header+
                ,:content ,(emdocs-get-global-ip client))))))))
