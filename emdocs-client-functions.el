@@ -44,7 +44,7 @@
             server-socket
             (json-encode
              `(,:message_type ,+emdocs-send-ip-header+
-               ,:content (emdocs-get-global-ip client))))))))
+               ,:content ,(emdocs-get-global-ip client))))))))
 
 (defmethod emdocs-client-send-message ((client emdocs-client) message)
   (process-send-string (emdocs-get-process client) message))
