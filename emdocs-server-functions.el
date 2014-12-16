@@ -32,16 +32,16 @@
     (setf (emdocs-get-after-change-function server) nil)
     (setf (emdocs-get-attached-buffer server) nil)))
 
-(defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
-  (let* ((json-object-type 'plist)
-         (json-message (json-read-from-string message)))
-    (cond ((string-equal (plist-get json-message :message_type)
-                         +emdocs-send-ip-header+)
-           (emdocs-attach-and-tableify
-            (emdocs-make-client
-             (emdocs-get-global-ip server)
-             (plist-get json-message :content)
-             (emdocs-get-attached-buffer server)))))))
+;; (defmethod emdocs-filter :after ((server emdocs-server) client-socket message)
+;;   (let* ((json-object-type 'plist)
+;;          (json-message (json-read-from-string message)))
+;;     (cond ((string-equal (plist-get json-message :message_type)
+;;                          +emdocs-send-ip-header+)
+;;            (emdocs-attach-and-tableify
+;;             (emdocs-make-client
+;;              (emdocs-get-global-ip server)
+;;              (plist-get json-message :content)
+;;              (emdocs-get-attached-buffer server)))))))
 
 (defmethod emdocs-sentinel :after ((server emdocs-server) client-socket message)
   (cond ((string-match +emdocs-conn-added-msg-regex+ message)
@@ -53,6 +53,22 @@
           client-socket
           (json-encode
            `(,:message_type ,+emdocs-add-client-header+))))))
+
+(defmethod emdocs-attach-and-set-change-functions ((server emdocs-server))
+  "Adds appropriate after-change-functions to the given name-of-buffer."
+  (with-current-buffer (emdocs-get-attached-buffer server)
+    (unless (emdocs-get-after-change-function server)
+      (setq-local emdocs-is-network-insert nil)
+      (setf (emdocs-get-after-change-function server)
+            #'(lambda (beg end prev-length)
+                (with-current-buffer (emdocs-get-attached-buffer server)
+                  (unless emdocs-is-network-insert
+                    (emdocs-notify-others-of-change
+                     server beg end prev-length)))))
+      (setq-local after-change-functions
+                  (cons
+                   (emdocs-get-after-change-function server)
+                   after-change-functions)))))
 
 (defmethod emdocs-notify-others-of-change ((server emdocs-server)
                                            beg end prev-length)
@@ -77,19 +93,3 @@ other users on the network."
                   ,:edit_type ,type
                   ,:point ,point
                   ,:content ,content))))
-
-(defmethod emdocs-attach-and-set-change-functions ((server emdocs-server))
-  "Adds appropriate after-change-functions to the given name-of-buffer."
-  (with-current-buffer (emdocs-get-attached-buffer server)
-    (unless (emdocs-get-after-change-function server)
-      (setq-local emdocs-is-network-insert nil)
-      (setf (emdocs-get-after-change-function server)
-            #'(lambda (beg end prev-length)
-                (with-current-buffer (emdocs-get-attached-buffer server)
-                  (unless emdocs-is-network-insert
-                    (emdocs-notify-others-of-change
-                     server beg end prev-length)))))
-      (setq-local after-change-functions
-                  (cons
-                   (emdocs-get-after-change-function server)
-                   after-change-functions)))))
