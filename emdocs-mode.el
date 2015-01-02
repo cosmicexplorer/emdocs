@@ -54,7 +54,7 @@ none active. Returns an arbitrary interface if more than one is connected."
   (cond ((string-match "^open from [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\n$" msg)
          (process-send-string sock "give me buffer and ip")
          (add-to-list '*emdocs-clients* sock))
-        ((string-match "^connection broken by remote peer\n$")
+        ((string-match "^connection broken by remote peer\n$" msg)
          (setq *emdocs-clients* (delete sock *emdocs-clients*)))))
 
 (defun emdocs-server-filter (sock msg)
