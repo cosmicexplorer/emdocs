@@ -59,11 +59,10 @@ none active. Returns an arbitrary interface if more than one is connected."
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
   (cond ((string-match "^open from [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\n$" msg)
-         (add-to-list '*emdocs-server-clients* sock)
          (process-send-string sock "give me buffer and ip\n"))
         ((string-match "^connection broken by remote peer\n$" msg)
          (setq *emdocs-server-clients*
-               (delete sock *emdocs-server-clients*)))))
+               (rassq-delete-all sock *emdocs-server-clients*)))))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -75,6 +74,7 @@ none active. Returns an arbitrary interface if more than one is connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg)))
     (unless (member (plist-get json-msg :ip) *emdocs-client-connections*)
+      (add-to-list '*emdocs-server-clients* (cons (plist-get json-msg) sock))
       (emdocs-connect-client (plist-get json-msg :buffer)
                              (plist-get json-msg :ip))
       (emdocs-broadcast-message msg))))
@@ -157,7 +157,7 @@ none active. Returns an arbitrary interface if more than one is connected."
 
 (defun emdocs-broadcast-message (msg)
   (loop for client in *emdocs-server-clients*
-        do (process-send-string client msg)))
+        do (process-send-string (cdr client) msg)))
 
 (defun emdocs-emit-keypress-json (buffer type point content)
   (emdocs-broadcast-message
@@ -251,6 +251,14 @@ none active. Returns an arbitrary interface if more than one is connected."
                       (not (eq client 'no-conn)))
              (delete-process client)))
   (setq emdocs-client-list nil)
+  (loop for client in *emdocs-server-clients*
+        do (when (string-equal (car client) (buffer-name (current-buffer)))
+             (delete-process (cdr client))))
+  (setq *emdocs-server-clients*
+        (remove-if
+         (lambda (item)
+           (string-equal (car item) (buffer-name (current-buffer))))
+         *emdocs-server-clients*))
   (remove-hook 'after-change-functions #'emdocs-after-change-function))
 
 ;;; interactives
