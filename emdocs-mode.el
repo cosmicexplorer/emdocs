@@ -12,7 +12,10 @@
 (defvar *emdocs-server* nil
   "docstring")
 
-(defvar *emdocs-clients* nil
+(defvar *emdocs-server-clients* nil
+  "docstring")
+
+(defvar *emdocs-client-connections* nil
   "docstring")
 
 ;;; functions
@@ -56,10 +59,11 @@ none active. Returns an arbitrary interface if more than one is connected."
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
   (cond ((string-match "^open from [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\n$" msg)
-         (process-send-string sock "give me buffer and ip\n")
-         (add-to-list '*emdocs-clients* sock))
+         (add-to-list '*emdocs-server-clients* sock)
+         (process-send-string sock "give me buffer and ip\n"))
         ((string-match "^connection broken by remote peer\n$" msg)
-         (setq *emdocs-clients* (delete sock *emdocs-clients*)))))
+         (setq *emdocs-server-clients*
+               (delete sock *emdocs-server-clients*)))))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -70,8 +74,10 @@ none active. Returns an arbitrary interface if more than one is connected."
     (unless (bolp) (newline)))
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg)))
-    (emdocs-connect-client (plist-get json-msg :buffer)
-                           (plist-get json-msg :ip))))
+    (unless (member (plist-get json-msg :ip) *emdocs-client-connections*)
+      (emdocs-connect-client (plist-get json-msg :buffer)
+                             (plist-get json-msg :ip))
+      (emdocs-broadcast-message msg))))
 
 (defun emdocs-setup-server (my-ip)
   "docstring"
@@ -112,38 +118,45 @@ none active. Returns an arbitrary interface if more than one is connected."
         ((string-match "^\{.*\}$" msg)
          (let* ((json-object-type 'plist)
                 (json-msg (json-read-from-string msg)))
-           (with-current-buffer (plist-get json-msg :buffer)
-             (save-excursion
-               (setq emdocs-is-network-insert t)
-               (unwind-protect
-                   (cond
-                    ((string-equal "insert" (plist-get json-msg :edit_type))
-                     (goto-char (plist-get json-msg :point))
-                     (insert (plist-get json-msg :content)))
-                    ((string-equal "delete" (plist-get json-msg :edit_type))
-                     (goto-char (plist-get json-msg :point))
-                     (delete-char (plist-get json-msg :content))))
-                 (setq emdocs-is-network-insert nil))))))))
+           (if (plist-get json-msg :ip) ; if being told to connect
+               (unless (member (plist-get json-msg :ip) *emdocs-client-connections*)
+                 (add-to-list '*emdocs-client-connections*
+                              (plist-get json-msg :ip))
+                 (emdocs-connect-client (plist-get json-msg :buffer)
+                                        (plist-get json-msg :ip)))
+             (with-current-buffer (plist-get json-msg :buffer)
+               (save-excursion
+                 (setq emdocs-is-network-insert t)
+                 (unwind-protect
+                     (cond
+                      ((string-equal "insert" (plist-get json-msg :edit_type))
+                       (goto-char (plist-get json-msg :point))
+                       (insert (plist-get json-msg :content)))
+                      ((string-equal "delete" (plist-get json-msg :edit_type))
+                       (goto-char (plist-get json-msg :point))
+                       (delete-char (plist-get json-msg :content))))
+                   (setq emdocs-is-network-insert nil)))))))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
-  (make-network-process
-   :name (emdocs-get-client-process-name "test.txt" "1.2.3.4")
-   ;; TODO: remove the log buffer
-   :buffer (emdocs-get-client-process-buffer buffer)
-   :family 'ipv4
-   :host ip
-   :service +emdocs-http-port+
-   :sentinel (lambda (sock msg)
-               (emdocs-client-sentinel buffer sock msg))
-   :filter (lambda (sock msg)
-             (emdocs-client-filter buffer sock msg))
-   :server nil
-   :noquery t))
+  (unless (string-equal ip (emdocs-get-internal-ip-address))
+    (add-to-list '*emdocs-client-connections* ip)
+    (make-network-process
+     :name (emdocs-get-client-process-name buffer ip)
+     ;; TODO: remove the log buffer
+     :buffer (emdocs-get-client-process-buffer buffer)
+     :family 'ipv4
+     :host ip
+     :service +emdocs-http-port+
+     :sentinel (lambda (sock msg)
+                 (emdocs-client-sentinel buffer sock msg))
+     :filter (lambda (sock msg)
+               (emdocs-client-filter buffer sock msg))
+     :server nil
+     :noquery t)))
 
 (defun emdocs-broadcast-message (msg)
-  (message msg)
-  (loop for client in *emdocs-clients*
+  (loop for client in *emdocs-server-clients*
         do (process-send-string client msg)))
 
 (defun emdocs-emit-keypress-json (buffer type point content)
