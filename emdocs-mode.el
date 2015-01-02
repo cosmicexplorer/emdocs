@@ -74,7 +74,8 @@ none active. Returns an arbitrary interface if more than one is connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg)))
     (unless (member (plist-get json-msg :ip) *emdocs-client-connections*)
-      (add-to-list '*emdocs-server-clients* (cons (plist-get json-msg) sock))
+      (add-to-list '*emdocs-server-clients*
+                   (cons (plist-get json-msg :buffer) sock))
       (emdocs-connect-client (plist-get json-msg :buffer)
                              (plist-get json-msg :ip))
       (emdocs-broadcast-message msg))))
