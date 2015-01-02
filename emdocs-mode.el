@@ -1,101 +1,107 @@
-;; -*- lexical-binding: t; -*-
-(load-file
- (concat                                ; all the heavy lifting
-  (file-name-directory load-file-name)
-  "/emdocs-network-classes.el"))
+(eval-when-compile
+  (require 'cl))
 
-(define-minor-mode emdocs-mode
-  "Buffer-local minor mode for collaboratively editing buffers over the
-  internet.")
+;;; globals
 
-;;; singletons
-;;; TODO: assuming no concurrent access
-(let ((emdocs-server-table nil)
-      (emdocs-client-table nil))
-  (defun emdocs-get-global-server-table ()
-    (if emdocs-server-table
-        emdocs-server-table
-      (setq emdocs-server-table
-            (make-hash-table :test 'eq :weakness nil))))
-  (defun emdocs-get-global-client-table ()
-    (if emdocs-client-table
-        emdocs-client-table
-      (setq emdocs-client-table
-            (make-hash-table :test 'eq :weakness nil))))
-  (defun emdocs-kill-globals ()
-    (when emdocs-server-table
-      (maphash #'(lambda (serv-obj buf-name)
-                   (emdocs-stop serv-obj))
-               emdocs-server-table)
-      (clrhash emdocs-server-table)
-      (setq emdocs-server-table nil))
-    (when emdocs-client-table
-      (maphash #'(lambda (client-obj buf-name)
-                   (emdocs-stop client-obj))
-               emdocs-client-table)
-      (clrhash emdocs-client-table)
-      (setq emdocs-client-table nil))))
+(defconst +emdocs-http-port+ 8080
+  "docstring")
 
-;;; integration functions
-(defun emdocs-connect (input-ip-address)
-  (interactive "Mip address (RET for none): ")
-  ;; input-ip-address is "" if not given
-  (emdocs-mode)
-  (let* ((global-ip (emdocs-get-external-ip-address))
-         (server-to-add
-          (emdocs-make-server global-ip (buffer-name)))
-         (client-to-add
-          (if (string-equal input-ip-address "")
-              nil
-            (emdocs-make-client global-ip input-ip-address (buffer-name)))))
-    (emdocs-attach-and-tableify server-to-add)
-    (when client-to-add
-      (emdocs-attach-and-tableify client-to-add))))
+;;; classes
 
-;;; debugging functions for single-client single-server model
-(defun emdocs-get-server ()
-  (if (= (hash-table-count (emdocs-get-global-server-table)) 1)
-      (let ((single-server nil))
-        (maphash #'(lambda (serv buf)
-                     (setq single-server serv))
-                 (emdocs-get-global-server-table))
-        single-server)
-    (throw 'not-helpful t)))
-(defun emdocs-get-client ()
-  (if (= (hash-table-count (emdocs-get-global-client-table)) 1)
-      (let ((single-client nil))
-        (maphash #'(lambda (cli buf)
-                     (setq single-client cli))
-                 (emdocs-get-global-client-table))
-        single-client)
-    (throw 'not-helpful t)))
+;;; functions
+
+(defun emdocs-get-internal-ip-address (&optional device-name)
+  "Returns ip address of active interface, ignoring loopback. Returns nil if
+none active."
+  (if device-name
+      (format-network-address (car (network-interface-info device-name)) t)
+    (let ((network-interfaces (network-interface-list)))
+      ;; relies on loopback always being listed last in list
+      (if (string-equal (caar network-interfaces) "lo")
+          nil
+        (format-network-address (cdar (network-interface-list)) t)))))
+
+(defun emdocs-server-sentinel (buffer sock msg)
+  "docstring")
+
+(defun emdocs-server-filter (buffer sock msg)
+  "docstring")
+
+(defun emdocs-setup-server (buffer my-ip)
+  "docstring"
+  (make-local-variable 'emdocs-server)
+  (setq emdocs-server
+        (make-network-process
+         :name (concat "*emdocs-server:" (buffer-name buffer) "*")
+         ;; TODO: remove the log buffer
+         :buffer (concat "*emdocs-server-log:" (buffer-name buffer) "*")
+         :family 'ipv4
+         :host ip
+         :service +emdocs-http-port+
+         :sentinel (lambda (sock msg)
+                     (emdocs-server-sentinel buffer sock msg))
+         :filter (lambda (sock msg)
+                   (emdocs-server-filter buffer sock msg))
+         :server t
+         :noquery t)))
+
+(defun emdocs-client-sentinel (buffer sock msg)
+  "docstring")
+
+(defun emdocs-client-filter (buffer sock msg)
+  "docstring")
+
+(defun emdocs-connect-client (buffer ip)
+  "docstring"
+  (add-to-list emdocs-client-list
+               (make-network-process
+                :name (concat "*emdocs-client:"
+                              (buffer-name buffer) ":" ip "*")
+                ;; TODO: remove the log buffer
+                :buffer (concat "*emdocs-client-log:" (buffer-name buffer) "*")
+                :family 'ipv4
+                :host ip
+                :service +emdocs-http-port+
+                :sentinel (lambda (sock msg)
+                            (emdocs-client-sentinel buffer sock msg))
+                :filter (lambda (sock msg)
+                          (emdocs-client-filter buffer sock msg))
+                :server nil
+                :noquery t)))
+
+(defun emdocs-attach-sockets-to-buffer (buffer ip)
+  "docstring"
+  (let ((my-ip (emdocs-get-internal-ip-address)))
+    (if my-ip
+        (progn
+          (emdocs-setup-server buffer my-ip)
+          (unless (string-equal ip "localhost")
+            (make-local-variable emdocs-client-list)
+            (setq emdocs-client-list nil)
+            (emdocs-connect-client buffer ip)))
+      (error "Not connected to internet: exiting."))))
+
+(defun emdocs-connect ()
+  "docstring"
+  (make-local-variable 'emdocs-ip-addr)
+  (setq emdocs-ip-addr (read-from-minibuffer "ip: "))
+  (emdocs-attach-sockets-to-buffer (current-buffer) emdocs-ip-addr))
 
 (defun emdocs-disconnect ()
-  (interactive)
-  (emdocs-mode 0)
-  (let ((servers-to-disconnect nil))
-    (maphash #'(lambda (serv-obj buf-name)
-                 (when (string-equal (buffer-name)
-                                     (emdocs-get-attached-buffer serv-obj))
-                   (emdocs-stop serv-obj)
-                   (setq servers-to-disconnect ; add-to-list not working fsr
-                         (cons serv-obj servers-to-disconnect))))
-             (emdocs-get-global-server-table))
-    (loop for serv-obj in servers-to-disconnect
-          do (remhash serv-obj (emdocs-get-global-server-table))))
-  (let ((clients-to-disconnect nil))
-    (maphash #'(lambda (client-obj buf-name)
-                 (when (string-equal (buffer-name)
-                                     (emdocs-get-attached-buffer client-obj))
-                   (emdocs-stop client-obj)
-                   (setq clients-to-disconnect
-                         (cons client-obj clients-to-disconnect))))
-             (emdocs-get-global-client-table))
-    (loop for client-obj in clients-to-disconnect
-          do (remhash client-obj (emdocs-get-global-client-table)))))
+  "docstring"
+  (when emdocs-server
+      (delete-process emdocs-server)))
 
-(defun emdocs-disconnect-all ()
-  (interactive)
-  (emdocs-kill-globals))
+;;; define mode
 
-(provide 'emdocs)
+(define-minor-mode emdocs-mode
+  "docstring"
+  :lighter " MDox"
+  :keymap (let ((map (make-sparse-keymap)))
+            (define-key map (kbd "C-c C-c") 'emdocs-mode)
+            map)
+  (if emdocs-mode
+      (emdocs-connect)
+    (emdocs-disconnect)))
+
+(provide 'emdocs-mode)
