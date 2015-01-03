@@ -87,7 +87,6 @@ none active. Returns an arbitrary interface if more than one is connected."
          (setq *emdocs-incoming-clients*
                (remove-if
                 (lambda (client)
-                  ;; TODO: consider turning into eq?
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
@@ -130,7 +129,13 @@ none active. Returns an arbitrary interface if more than one is connected."
   (with-current-buffer (emdocs-get-client-process-buffer buffer)
     (goto-char (point-min))
     (insert "sentinel:" msg)
-    (unless (bolp) (newline))))
+    (unless (bolp) (newline)))
+  (when (string-match "^connection broken by remote peer\n$" msg)
+    (setq *emdocs-outgoing-clients*
+          (remove-if
+           (lambda (client)
+             (equal (emdocs-get-process client) sock))
+           *emdocs-outgoing-clients*))))
 
 (defun emdocs-client-filter (buffer sock msg)
   "docstring"
