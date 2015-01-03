@@ -83,13 +83,13 @@ none active. Returns an arbitrary interface if more than one is connected."
            (unless (find ip *emdocs-outgoing-clients*
                          :test #'emdocs-is-ip-from-client)
              (process-send-string sock "give me buffer and ip\n"))))
-        ;; ((string-match "^connection broken by remote peer\n$" msg)
-        ;;  (setq *emdocs-server-clients*
-        ;;        (remove-if
-        ;;         (lambda (item)
-        ;;           (equal (car item) sock))
-        ;;         *emdocs-server-clients*)))
-        ))
+        ((string-match "^connection broken by remote peer\n$" msg)
+         (setq *emdocs-incoming-clients*
+               (remove-if
+                (lambda (client)
+                  ;; TODO: consider turning into eq?
+                  (equal (emdocs-get-process client) sock))
+                *emdocs-server-clients*)))))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
