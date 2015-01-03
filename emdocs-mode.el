@@ -101,16 +101,16 @@ none active. Returns an arbitrary interface if more than one is connected."
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
          (ip (plist-get json-msg :ip)))
-    (insert "ya")
     (unless (find ip *emdocs-incoming-clients*
                   :test #'emdocs-is-ip-from-client)
-      (insert "hey")
       (add-to-list '*emdocs-incoming-clients*
                    (make-instance 'emdocs-client
                                   :process sock
                                   :attached-buffer buffer
                                   :ip ip))
-      (emdocs-connect-client buffer ip)
+      (unless (find ip *emdocs-outgoing-clients*
+                    :test #'emdocs-is-ip-from-client)
+        (emdocs-connect-client buffer ip))
       (emdocs-broadcast-message msg))))
 
 (defun emdocs-setup-server (my-ip)
