@@ -139,35 +139,38 @@ none active. Returns an arbitrary interface if more than one is connected."
     (goto-char (point-min))
     (insert "filter:" msg)
     (unless (bolp) (newline)))
-  (cond ((string-match "^give me buffer and ip\n$" msg)
-         (process-send-string
-          sock
-          (json-encode
-           `(:buffer ,(if (bufferp buffer)
-                          (buffer-name buffer)
-                        buffer)
-             :ip ,(emdocs-get-internal-ip-address)))))
-        ;; ((string-match "^\{.*\}$" msg)
-        ;;  (let* ((json-object-type 'plist)
-        ;;         (json-msg (json-read-from-string msg)))
-        ;;    (if (plist-get json-msg :ip) ; if being told to connect
-        ;;        (unless (member (plist-get json-msg :ip)
-        ;;                        *emdocs-client-connections*)
-        ;;          (emdocs-connect-client (plist-get json-msg :buffer)
-        ;;                                 (plist-get json-msg :ip)))
-        ;;      (with-current-buffer (plist-get json-msg :buffer)
-        ;;        (save-excursion
-        ;;          (setq emdocs-is-network-insert t)
-        ;;          (unwind-protect
-        ;;              (cond
-        ;;               ((string-equal "insert" (plist-get json-msg :edit_type))
-        ;;                (goto-char (plist-get json-msg :point))
-        ;;                (insert (plist-get json-msg :content)))
-        ;;               ((string-equal "delete" (plist-get json-msg :edit_type))
-        ;;                (goto-char (plist-get json-msg :point))
-        ;;                (delete-char (plist-get json-msg :content))))
-        ;;            (setq emdocs-is-network-insert nil)))))))
-         ))
+  (if (string-match "^give me buffer and ip\n$" msg)
+      (process-send-string
+       sock
+       (json-encode
+        `(:buffer ,(if (bufferp buffer)
+                       (buffer-name buffer)
+                     buffer)
+                  :ip ,(emdocs-get-internal-ip-address))))
+    (let* ((json-object-type 'plist)
+           (json-msg (json-read-from-string msg))
+           (buffer (plist-get json-msg :buffer))
+           (ip (plist-get json-msg :ip))
+           (type (plist-get json-msg :edit_type))
+           (cur-point (plist-get json-msg :point))
+           (content (plist-get json-msg :content)))
+      (if ip ; if being told to connect
+          (unless (find ip *emdocs-outgoing-clients*
+                        :test #'emdocs-is-ip-from-client)
+            (emdocs-connect-client (plist-get json-msg :buffer)
+                                   (plist-get json-msg :ip)))
+        (with-current-buffer buffer
+          (save-excursion
+            (setq emdocs-is-network-insert t)
+            (unwind-protect
+                (cond
+                 ((string-equal "insert" type)
+                  (goto-char cur-point)
+                  (insert content))
+                 ((string-equal "delete" type)
+                  (goto-char cur-point)
+                  (delete-char content)))
+              (setq emdocs-is-network-insert nil))))))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
@@ -293,21 +296,6 @@ none active. Returns an arbitrary interface if more than one is connected."
 
 (defun emdocs-disconnect ()
   "docstring"
-  ;; (loop for client in emdocs-initial-client
-  ;;       do (when (and client
-  ;;                     (not (eq client 'no-conn)))
-  ;;            (delete-process client)))
-  ;; (setq emdocs-initial-client nil)
-  ;; (loop for client in *emdocs-server-clients*
-  ;;       do (when (string-equal (car client) (buffer-name (current-buffer)))
-  ;;            (delete-process (cdr client))))
-  ;; (setq *emdocs-server-clients*
-  ;;       (remove-if
-  ;;        (lambda (item)
-  ;;          (string-equal (car item) (buffer-name (current-buffer))))
-  ;;        *emdocs-server-clients*))
-  ;; (setq-local after-change-functions
-  ;;             (remove #'emdocs-after-change-lambda after-change-functions))
   (loop for client in *emdocs-outgoing-clients*
         do (when (emdocs-test-if-client-attached-to-buffer client)
              (delete-process (emdocs-get-process client))))
