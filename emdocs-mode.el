@@ -250,7 +250,7 @@ none active. Returns an arbitrary interface if more than one is connected."
                     (file-error 'no-conn))))
           (if (eq *emdocs-server* 'no-conn)
               (progn
-                (message "Server could not connect: exiting.")
+                (message "Server could not be started: exiting.")
                 (setq *emdocs-server* nil)
                 (setq emdocs-mode nil)
                 (emdocs-disconnect))
@@ -266,15 +266,15 @@ none active. Returns an arbitrary interface if more than one is connected."
                        (setq emdocs-mode nil)
                        (emdocs-disconnect))
               (with-current-buffer buffer
-                (setq emdocs-is-network-insert nil)
-                (setq emdocs-after-change-lambda
-                      (lambda (beg end prev-length)
-                        (emdocs-after-change-function
-                         buffer beg end prev-length)))
+                (setq-local emdocs-is-network-insert nil)
+                (setq-local emdocs-after-change-lambda
+                            (lambda (beg end prev-length)
+                              (with-current-buffer buffer
+                                (emdocs-after-change-function
+                                 buffer beg end prev-length))))
                 (setq-local after-change-functions
-                            (cons
-                             #'emdocs-after-change-lambda
-                             after-change-functions))))))
+                            (cons emdocs-after-change-lambda
+                                  after-change-functions))))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
       (emdocs-disconnect))))
@@ -313,7 +313,10 @@ none active. Returns an arbitrary interface if more than one is connected."
              (delete-process (emdocs-get-process client))))
   (setq *emdocs-incoming-clients*
         (remove-if #'emdocs-test-if-client-attached-to-buffer
-                   *emdocs-incoming-clients*)))
+                   *emdocs-incoming-clients*))
+  (setq-local after-change-functions
+              (remove emdocs-after-change-lambda after-change-functions))
+  (setq-local emdocs-after-change-lambda nil))
 
 ;;; interactives
 (defun emdocs-kill-server ()
