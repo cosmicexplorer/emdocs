@@ -89,7 +89,7 @@ none active. Returns an arbitrary interface if more than one is connected."
                 (lambda (client)
                   ;; TODO: consider turning into eq?
                   (equal (emdocs-get-process client) sock))
-                *emdocs-server-clients*)))))
+                *emdocs-incoming-clients*)))))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
