@@ -80,7 +80,7 @@ none active. Returns an arbitrary interface if more than one is connected."
          (let ((ip (progn
                      (string-match "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" msg)
                      (match-string-no-properties 0 msg))))
-           (unless (find ip *emdocs-outgoing-clients*
+           (unless (find ip *emdocs-incoming-clients*
                          :test #'emdocs-is-ip-from-client)
              (process-send-string sock "give me buffer and ip\n"))))
         ((string-match "^connection broken by remote peer\n$" msg)
@@ -101,8 +101,10 @@ none active. Returns an arbitrary interface if more than one is connected."
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
          (ip (plist-get json-msg :ip)))
-    (unless (find ip *emdocs-outgoing-clients*
+    (insert "ya")
+    (unless (find ip *emdocs-incoming-clients*
                   :test #'emdocs-is-ip-from-client)
+      (insert "hey")
       (add-to-list '*emdocs-incoming-clients*
                    (make-instance 'emdocs-client
                                   :process sock
@@ -223,8 +225,7 @@ none active. Returns an arbitrary interface if more than one is connected."
                   buffer "insert" beg (buffer-substring beg end)))
                 ((= beg end)
                  (emdocs-emit-keypress-json
-                  buffer "delete" beg prev-length))))
-      (message "WHAT"))))
+                  buffer "delete" beg prev-length)))))))
 
 (defvar-local emdocs-initial-client nil
   "docstring")
