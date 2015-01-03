@@ -21,17 +21,15 @@
 
 ;;; classes
 
-(defclass emdocs-incoming-client ()
+(defclass emdocs-client ()
   ((process
-    :initarg process
+    :initarg :process
     :accessor emdocs-get-process)
-   (buffer
-    :initarg buffer
-    :accessor emdocs-get-buffer)))
-
-(defclass emdocs-outgoing-client (emdocs-incoming-client)
-  ((ip
-    :initarg ip
+   (attached-buffer
+    :initarg :attached-buffer
+    :accessor emdocs-get-attached-buffer)
+   (ip
+    :initarg :ip
     :accessor emdocs-get-ip)))
 
 ;;; functions
@@ -68,6 +66,10 @@ none active. Returns an arbitrary interface if more than one is connected."
       (concat "*emdocs-client:" (buffer-name buffer) ":" ip "*")
     (concat "*emdocs-client:" buffer "*")))
 
+(defun emdocs-is-ip-from-client (test-ip client)
+  (string-equal test-ip
+                (emdocs-get-ip client)))
+
 (defun emdocs-server-sentinel (sock msg)
   "docstring"
   (with-current-buffer (emdocs-get-server-process-buffer)
@@ -79,16 +81,15 @@ none active. Returns an arbitrary interface if more than one is connected."
                      (string-match "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" msg)
                      (match-string-no-properties 0 msg))))
            (unless (find ip *emdocs-outgoing-clients*
-                         :test (lambda (test-ip client)
-                                 (string-equal test-ip
-                                               (emdocs-get-ip client))))
+                         :test #'emdocs-is-ip-from-client)
              (process-send-string sock "give me buffer and ip\n"))))
-        ((string-match "^connection broken by remote peer\n$" msg)
-         (setq *emdocs-server-clients*
-               (remove-if
-                (lambda (item)
-                  (equal (car item) sock))
-                *emdocs-server-clients*)))))
+        ;; ((string-match "^connection broken by remote peer\n$" msg)
+        ;;  (setq *emdocs-server-clients*
+        ;;        (remove-if
+        ;;         (lambda (item)
+        ;;           (equal (car item) sock))
+        ;;         *emdocs-server-clients*)))
+        ))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -98,12 +99,17 @@ none active. Returns an arbitrary interface if more than one is connected."
     (insert "filter:" msg)
     (unless (bolp) (newline)))
   (let* ((json-object-type 'plist)
-         (json-msg (json-read-from-string msg)))
-    (unless (member (plist-get json-msg :ip) *emdocs-client-connections*)
-      (add-to-list '*emdocs-server-clients*
-                   (cons (plist-get json-msg :buffer) sock))
-      (emdocs-connect-client (plist-get json-msg :buffer)
-                             (plist-get json-msg :ip))
+         (json-msg (json-read-from-string msg))
+         (buffer (plist-get json-msg :buffer))
+         (ip (plist-get json-msg :ip)))
+    (unless (find ip *emdocs-outgoing-clients*
+                  :test #'emdocs-is-ip-from-client)
+      (add-to-list '*emdocs-incoming-clients*
+                   (make-instance 'emdocs-client
+                                  :process sock
+                                  :attached-buffer buffer
+                                  :ip ip))
+      (emdocs-connect-client buffer ip)
       (emdocs-broadcast-message msg))))
 
 (defun emdocs-setup-server (my-ip)
@@ -142,31 +148,33 @@ none active. Returns an arbitrary interface if more than one is connected."
                           (buffer-name buffer)
                         buffer)
              :ip ,(emdocs-get-internal-ip-address)))))
-        ((string-match "^\{.*\}$" msg)
-         (let* ((json-object-type 'plist)
-                (json-msg (json-read-from-string msg)))
-           (if (plist-get json-msg :ip) ; if being told to connect
-               (unless (member (plist-get json-msg :ip)
-                               *emdocs-client-connections*)
-                 (emdocs-connect-client (plist-get json-msg :buffer)
-                                        (plist-get json-msg :ip)))
-             (with-current-buffer (plist-get json-msg :buffer)
-               (save-excursion
-                 (setq emdocs-is-network-insert t)
-                 (unwind-protect
-                     (cond
-                      ((string-equal "insert" (plist-get json-msg :edit_type))
-                       (goto-char (plist-get json-msg :point))
-                       (insert (plist-get json-msg :content)))
-                      ((string-equal "delete" (plist-get json-msg :edit_type))
-                       (goto-char (plist-get json-msg :point))
-                       (delete-char (plist-get json-msg :content))))
-                   (setq emdocs-is-network-insert nil)))))))))
+        ;; ((string-match "^\{.*\}$" msg)
+        ;;  (let* ((json-object-type 'plist)
+        ;;         (json-msg (json-read-from-string msg)))
+        ;;    (if (plist-get json-msg :ip) ; if being told to connect
+        ;;        (unless (member (plist-get json-msg :ip)
+        ;;                        *emdocs-client-connections*)
+        ;;          (emdocs-connect-client (plist-get json-msg :buffer)
+        ;;                                 (plist-get json-msg :ip)))
+        ;;      (with-current-buffer (plist-get json-msg :buffer)
+        ;;        (save-excursion
+        ;;          (setq emdocs-is-network-insert t)
+        ;;          (unwind-protect
+        ;;              (cond
+        ;;               ((string-equal "insert" (plist-get json-msg :edit_type))
+        ;;                (goto-char (plist-get json-msg :point))
+        ;;                (insert (plist-get json-msg :content)))
+        ;;               ((string-equal "delete" (plist-get json-msg :edit_type))
+        ;;                (goto-char (plist-get json-msg :point))
+        ;;                (delete-char (plist-get json-msg :content))))
+        ;;            (setq emdocs-is-network-insert nil)))))))
+         )
+    )
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
-  (unless (string-equal ip (emdocs-get-internal-ip-address))
-    (let ((process (make-network-process
+  ;; (unless (string-equal ip (emdocs-get-internal-ip-address))
+     (let ((process (make-network-process
                     :name (emdocs-get-client-process-name buffer ip)
                     ;; TODO: remove the log buffer
                     :buffer (emdocs-get-client-process-buffer buffer)
@@ -178,13 +186,16 @@ none active. Returns an arbitrary interface if more than one is connected."
                     :filter (lambda (sock msg)
                               (emdocs-client-filter buffer sock msg))
                     :server nil
-                    :noquery t))))
-    (add-to-list '*emdocs-outgoing-clients*
-                 (make-instance 'emdocs-outgoing-client
-                                :process process
-                                :buffer buffer
-                                :ip ip))
-    process))
+                    :noquery t)))
+       (add-to-list '*emdocs-outgoing-clients*
+                    (make-instance 'emdocs-client
+                                   :process process
+                                   :attached-buffer (if (bufferp buffer)
+                                                        (buffer-name buffer)
+                                                      buffer)
+                                   :ip ip)))
+    ;; )
+ )
 
 (defun emdocs-broadcast-message (msg)
   (loop for client in *emdocs-server-clients*
@@ -280,23 +291,40 @@ none active. Returns an arbitrary interface if more than one is connected."
 "Invalid ip address. Keep in mind emdocs only works for private ip addresses.")
     (setq emdocs-mode nil)))
 
+(defun emdocs-test-if-client-attached-to-buffer (client)
+  (string-equal
+   (emdocs-get-attached-buffer client)
+   (buffer-name)))
+
 (defun emdocs-disconnect ()
   "docstring"
-  (loop for client in emdocs-initial-client
-        do (when (and client
-                      (not (eq client 'no-conn)))
-             (delete-process client)))
-  (setq emdocs-initial-client nil)
-  (loop for client in *emdocs-server-clients*
-        do (when (string-equal (car client) (buffer-name (current-buffer)))
-             (delete-process (cdr client))))
-  (setq *emdocs-server-clients*
-        (remove-i
-         (lambda (item)
-           (string-equal (car item) (buffer-name (current-buffer))))
-         *emdocs-server-clients*))
-  (setq-local after-change-functions
-              (remove #'emdocs-after-change-lambda after-change-functions)))
+  ;; (loop for client in emdocs-initial-client
+  ;;       do (when (and client
+  ;;                     (not (eq client 'no-conn)))
+  ;;            (delete-process client)))
+  ;; (setq emdocs-initial-client nil)
+  ;; (loop for client in *emdocs-server-clients*
+  ;;       do (when (string-equal (car client) (buffer-name (current-buffer)))
+  ;;            (delete-process (cdr client))))
+  ;; (setq *emdocs-server-clients*
+  ;;       (remove-if
+  ;;        (lambda (item)
+  ;;          (string-equal (car item) (buffer-name (current-buffer))))
+  ;;        *emdocs-server-clients*))
+  ;; (setq-local after-change-functions
+  ;;             (remove #'emdocs-after-change-lambda after-change-functions))
+  (loop for client in *emdocs-outgoing-clients*
+        do (when (emdocs-test-if-client-attached-to-buffer client)
+             (delete-process (emdocs-get-process client))))
+  (setq *emdocs-outgoing-clients*
+        (remove-if #'emdocs-test-if-client-attached-to-buffer
+                   *emdocs-outgoing-clients*))
+  (loop for client in *emdocs-incoming-clients*
+        do (when (emdocs-test-if-client-attached-to-buffer client)
+             (delete-process (emdocs-get-process client))))
+  (setq *emdocs-incoming-clients*
+        (remove-if #'emdocs-test-if-client-attached-to-buffer
+                   *emdocs-incoming-clients*)))
 
 ;;; interactives
 (defun emdocs-kill-server ()
