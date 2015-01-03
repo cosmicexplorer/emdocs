@@ -116,7 +116,6 @@ none active. Returns an arbitrary interface if more than one is connected."
   "docstring"
   (make-network-process
    :name (emdocs-get-server-process-name)
-   ;; TODO: remove the log buffer
    :buffer (emdocs-get-server-process-buffer)
    :family 'ipv4
    :host my-ip
@@ -168,15 +167,13 @@ none active. Returns an arbitrary interface if more than one is connected."
         ;;                (goto-char (plist-get json-msg :point))
         ;;                (delete-char (plist-get json-msg :content))))
         ;;            (setq emdocs-is-network-insert nil)))))))
-         )
-    )
+         ))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
-  ;; (unless (string-equal ip (emdocs-get-internal-ip-address))
-     (let ((process (make-network-process
+  (unless (string-equal ip (emdocs-get-internal-ip-address))
+      (let ((process (make-network-process
                     :name (emdocs-get-client-process-name buffer ip)
-                    ;; TODO: remove the log buffer
                     :buffer (emdocs-get-client-process-buffer buffer)
                     :family 'ipv4
                     :host ip
@@ -193,13 +190,11 @@ none active. Returns an arbitrary interface if more than one is connected."
                                    :attached-buffer (if (bufferp buffer)
                                                         (buffer-name buffer)
                                                       buffer)
-                                   :ip ip)))
-    ;; )
- )
+                                   :ip ip)))))
 
 (defun emdocs-broadcast-message (msg)
-  (loop for client in *emdocs-server-clients*
-        do (process-send-string (cdr client) msg)))
+  (loop for client in *emdocs-incoming-clients*
+        do (process-send-string (emdocs-get-process client) msg)))
 
 (defun emdocs-emit-keypress-json (buffer type point content)
   (emdocs-broadcast-message
