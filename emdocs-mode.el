@@ -175,7 +175,7 @@ none active. Returns an arbitrary interface if more than one is connected."
 (defun emdocs-connect-client (buffer ip)
   "docstring"
   (unless (string-equal ip (emdocs-get-internal-ip-address))
-      (let ((process (make-network-process
+    (let ((process (make-network-process
                     :name (emdocs-get-client-process-name buffer ip)
                     :buffer (emdocs-get-client-process-buffer buffer)
                     :family 'ipv4
@@ -187,13 +187,13 @@ none active. Returns an arbitrary interface if more than one is connected."
                               (emdocs-client-filter buffer sock msg))
                     :server nil
                     :noquery t)))
-       (add-to-list '*emdocs-outgoing-clients*
-                    (make-instance 'emdocs-client
-                                   :process process
-                                   :attached-buffer (if (bufferp buffer)
-                                                        (buffer-name buffer)
-                                                      buffer)
-                                   :ip ip)))))
+      (add-to-list '*emdocs-outgoing-clients*
+                   (make-instance 'emdocs-client
+                                  :process process
+                                  :attached-buffer (if (bufferp buffer)
+                                                       (buffer-name buffer)
+                                                     buffer)
+                                  :ip ip)))))
 
 (defun emdocs-broadcast-message (msg)
   (loop for client in *emdocs-incoming-clients*
@@ -237,11 +237,12 @@ none active. Returns an arbitrary interface if more than one is connected."
   "docstring"
   (let ((my-ip (emdocs-get-internal-ip-address)))
     (if my-ip
-        (unless *emdocs-server*
-          (setq *emdocs-server*           ; the setq is required, not sure why
-                (condition-case *emdocs-server*
-                    (emdocs-setup-server my-ip)
-                  (file-error 'no-conn)))
+        (progn
+          (unless *emdocs-server*
+            (setq *emdocs-server*           ; the setq is required, not sure why
+                  (condition-case *emdocs-server*
+                      (emdocs-setup-server my-ip)
+                    (file-error 'no-conn))))
           (if (eq *emdocs-server* 'no-conn)
               (progn
                 (message "Server could not connect: exiting.")
