@@ -1,5 +1,7 @@
 ;; -*- lexical-binding: t; -*-
 
+;;; requires
+
 (eval-when-compile
   (require 'cl)
   (require 'json)
@@ -19,25 +21,43 @@
 (defvar *emdocs-incoming-clients* nil
   "docstring")
 
+;;; locals
+
+(defvar-local emdocs-initial-client nil
+  "docstring")
+
+(defvar-local emdocs-ip-addr nil
+  "docstring")
+
+(defvar-local emdocs-is-network-insert nil
+  "docstring")
+
+(defvar-local emdocs-after-change-lambda nil
+  "docstring")
+
 ;;; classes
 
 (defclass emdocs-client ()
   ((process
     :initarg :process
-    :accessor emdocs-get-process)
+    :accessor emdocs-get-process
+    :documentation "docstring")
    (attached-buffer
     :initarg :attached-buffer
-    :accessor emdocs-get-attached-buffer)
+    :accessor emdocs-get-attached-buffer
+    :documentation "docstring")
    (ip
     :initarg :ip
-    :accessor emdocs-get-ip)))
+    :accessor emdocs-get-ip
+    :documentation "docstring"))
+  "docstring")
 
 ;;; functions
 
-;;; utility
 (defun emdocs-get-internal-ip-address (&optional device-name)
-  "Returns ip address of active interface, ignoring loopback. Returns nil if
-none active. Returns an arbitrary interface if more than one is connected."
+  "Returns ip address of active network interface, ignoring loopback. Returns
+nil if none active. Returns an arbitrary interface if more than one is
+connected."
   (if device-name
       (format-network-address (car (network-interface-info device-name)) t)
     (let ((network-interfaces (network-interface-list)))
@@ -164,8 +184,7 @@ none active. Returns an arbitrary interface if more than one is connected."
       (if ip ; if being told to connect
           (unless (find ip *emdocs-outgoing-clients*
                         :test #'emdocs-is-ip-from-client)
-            (emdocs-connect-client (plist-get json-msg :buffer)
-                                   (plist-get json-msg :ip)))
+            (emdocs-connect-client buffer ip))
         (with-current-buffer buffer
           (save-excursion
             (setq emdocs-is-network-insert t)
@@ -226,18 +245,6 @@ none active. Returns an arbitrary interface if more than one is connected."
                 ((= beg end)
                  (emdocs-emit-keypress-json
                   buffer "delete" beg prev-length)))))))
-
-(defvar-local emdocs-initial-client nil
-  "docstring")
-
-(defvar-local emdocs-ip-addr nil
-  "docstring")
-
-(defvar-local emdocs-is-network-insert nil
-  "docstring")
-
-(defvar-local emdocs-after-change-lambda nil
-  "docstring")
 
 (defun emdocs-attach-sockets-to-buffer (buffer ip)
   "docstring"
