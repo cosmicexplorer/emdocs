@@ -202,6 +202,7 @@ connected."
   "docstring"
   (when (process-live-p sock)
     (process-send-string
+     sock
      (json-encode `(:get_buffer_contents ,t
                     :buffer ,(if (bufferp buffer)
                                  (buffer-name buffer)
