@@ -120,8 +120,7 @@ connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
-         (ip (plist-get json-msg :ip))
-         (get-buffer-contents (plist-get json-msg :get_buffer_contents)))
+         (ip (plist-get json-msg :ip)))
     (cond (ip                           ; if given buffer and ip to connect to
            (unless (find ip *emdocs-incoming-clients*
                          :test #'emdocs-is-ip-from-client)
@@ -256,7 +255,9 @@ connected."
 
 (defun emdocs-after-change-function (buffer beg end prev-length)
   "docstring"
-  (with-current-buffer (buffer-name buffer)
+  (with-current-buffer (if (bufferp buffer)
+                           (buffer-name buffer)
+                         buffer)
     (if (boundp 'emdocs-is-network-insert)
         (unless emdocs-is-network-insert
           (cond ((= prev-length 0)
@@ -342,7 +343,7 @@ connected."
    (emdocs-get-attached-buffer client)
    (buffer-name)))
 
-(defun emdocs-disconnect (buffer)
+(defun emdocs-disconnect ()
   "docstring"
   (loop for client in *emdocs-outgoing-clients*
         do (when (emdocs-test-if-client-attached-to-buffer client)
