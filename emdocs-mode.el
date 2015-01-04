@@ -110,6 +110,18 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
+(defun emdocs-broadcast-buffer-at-intervals (buffer sock)
+  "docstring"
+  (when (get-buffer buffer)
+    (with-current-buffer buffer
+      (when emdocs-mode
+        (process-send-string
+         sock
+         (json-encode `(:buffer ,buffer
+                        :buffer_contents ,(buffer-string))))
+        (run-at-time "1 min" nil
+                     #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
+
 (defun emdocs-server-filter (sock msg)
   "docstring"
   ;; assumes will only receive json from emdocs-client-filter
@@ -129,6 +141,7 @@ connected."
                                          :process sock
                                          :attached-buffer buffer
                                          :ip ip))
+             (emdocs-broadcast-buffer-at-intervals buffer sock)
              (unless (find ip *emdocs-outgoing-clients*
                            :test #'emdocs-is-ip-from-client)
                (emdocs-connect-client buffer ip))
@@ -267,15 +280,6 @@ connected."
                  (emdocs-emit-keypress-json
                   buffer "delete" beg prev-length)))))))
 
-(defun emdocs-broadcast-buffer-at-intervals (buffer)
-  "docstring"
-  (with-current-buffer buffer
-    (when emdocs-mode
-      (emdocs-broadcast-message
-       (json-encode `(:buffer ,buffer
-                      :buffer_contents ,(buffer-string))))
-      (run-at-time "1 min" nil #'emdocs-broadcast-buffer-at-intervals buffer))))
-
 (defun emdocs-attach-to-buffer (buffer ip)
   "docstring"
   (let ((my-ip (emdocs-get-internal-ip-address)))
@@ -292,7 +296,6 @@ connected."
                 (setq *emdocs-server* nil)
                 (setq emdocs-mode nil)
                 (emdocs-disconnect))
-            (emdocs-broadcast-buffer-at-intervals buffer)
             (setq emdocs-initial-client nil)
             (unless (or (string-equal ip "localhost")
                         (string-equal ip ""))
@@ -339,27 +342,30 @@ connected."
     (setq emdocs-mode nil)))
 
 (defun emdocs-test-if-client-attached-to-buffer (client)
+  (insert (emdocs-get-attached-buffer client) ",")
+  (insert (buffer-name) "\n")
   (string-equal
    (emdocs-get-attached-buffer client)
    (buffer-name)))
 
-(defun emdocs-disconnect ()
+(defun emdocs-disconnect (buffer)
   "docstring"
-  (loop for client in *emdocs-outgoing-clients*
-        do (when (emdocs-test-if-client-attached-to-buffer client)
-             (delete-process (emdocs-get-process client))))
-  (setq *emdocs-outgoing-clients*
-        (remove-if #'emdocs-test-if-client-attached-to-buffer
-                   *emdocs-outgoing-clients*))
-  (loop for client in *emdocs-incoming-clients*
-        do (when (emdocs-test-if-client-attached-to-buffer client)
-             (delete-process (emdocs-get-process client))))
-  (setq *emdocs-incoming-clientbuffer
-        (remove-if #'emdocs-test-if-client-attached-to-buffer
-                   *emdocs-incoming-clients*))
-  (setq-local after-change-functions
-              (remove emdocs-after-change-lambda after-change-functions))
-  (setq-local emdocs-after-change-lambda nil))
+  (with-current-buffer buffer
+    (loop for client in *emdocs-outgoing-clients*
+          do (when (emdocs-test-if-client-attached-to-buffer client)
+               (delete-process (emdocs-get-process client))))
+    (setq *emdocs-outgoing-clients*
+          (remove-if #'emdocs-test-if-client-attached-to-buffer
+                     *emdocs-outgoing-clients*))
+    (loop for client in *emdocs-incoming-clients*
+          do (when (emdocs-test-if-client-attached-to-buffer client)
+               (delete-process (emdocs-get-process client))))
+    (setq *emdocs-incoming-clients*
+          (remove-if #'emdocs-test-if-client-attached-to-buffer
+                     *emdocs-incoming-clients*))
+    (setq-local after-change-functions
+                (remove emdocs-after-change-lambda after-change-functions))
+    (setq-local emdocs-after-change-lambda nil)))
 
 ;;; interactives
 (defun emdocs-kill-server ()
@@ -379,10 +385,10 @@ connected."
   "docstring"
   :lighter " MDox"
   :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "C-c C-c") 'emdocs-mode)
+            (define-key map (kbd "C-c C-c") #'emdocs-mode)
             map)
   (if emdocs-mode
       (emdocs-connect (buffer-name))
-    (emdocs-disconnect)))
+    (emdocs-disconnect (buffer-name))))
 
 (provide 'emdocs-mode)
