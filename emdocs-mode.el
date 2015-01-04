@@ -115,28 +115,28 @@ connected."
   (when (get-buffer buffer)
     (with-current-buffer buffer
       (when emdocs-mode
-        (loop with cur-start = (point-min)
-              with cur-end = (if (< (point-max) 500)
-                                 (point-max)
-                               500)
-              with break-from-loop = nil
-              do (progn
-                   (when (= cur-end (point-max))
-                     (setq break-from-loop t))
-                   (process-send-string
-                    sock
-                    (json-encode
-                     `(:buffer ,buffer
-                       :buffer_contents ,(buffer-substring-no-properties
-                                                  cur-start cur-end)
-                       :start ,cur-start
-                       :end ,cur-end)))
-                   (setq cur-start (+ cur-start 500))
-                   (setq cur-end (if (< (point-max) (+ cur-end 500))
-                                     (point-max)
-                                   (+ cur-end 500)))
-                   (if break-from-loop
-                       (return))))
+        (let ((chunk-size 500))
+          (loop with cur-start = (point-min)
+                with cur-end = (if (< (point-max) chunk-size)
+                                   (point-max)
+                                 chunk-size)
+                with break-from-loop = nil
+                do (progn
+                     (when (= cur-end (point-max))
+                       (setq break-from-loop t))
+                     (process-send-string
+                      sock
+                      (json-encode
+                       `(:buffer ,buffer
+                         :buffer_contents ,(buffer-substring-no-properties
+                                                    cur-start cur-end)
+                         :start ,cur-start)))
+                     (setq cur-start (+ cur-start chunk-size))
+                     (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
+                                       (point-max)
+                                     (+ cur-end chunk-size)))
+                     (if break-from-loop
+                         (return)))))
         (run-at-time "1 min" nil
                      #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
 
@@ -213,7 +213,8 @@ connected."
            (type (plist-get json-msg :edit_type))
            (cur-point (plist-get json-msg :point))
            (content (plist-get json-msg :content))
-           (buffer-contents (plist-get json-msg :buffer_contents)))
+           (buffer-contents (plist-get json-msg :buffer_contents))
+           (cur-start (plist-get json-msg :start)))
       (cond (ip                       ; if being told to connect
              (unless (find ip *emdocs-outgoing-clients*
                            :test #'emdocs-is-ip-from-client)
@@ -239,8 +240,9 @@ connected."
                    (setq emdocs-is-network-insert t)
                    (unwind-protect
                        (progn
-                         (goto-char (point-min))
-                         (erase-buffer)
+                         (goto-char cur-start)
+                         (if (= cur-start (point-min))
+                             (erase-buffer))
                          (insert buffer-contents)
                          (goto-char prev-point))
                      (setq emdocs-is-network-insert nil))))))))))
