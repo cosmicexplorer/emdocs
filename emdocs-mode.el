@@ -121,17 +121,18 @@ connected."
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
          (ip (plist-get json-msg :ip)))
-    (unless (find ip *emdocs-incoming-clients*
-                  :test #'emdocs-is-ip-from-client)
-      (add-to-list '*emdocs-incoming-clients*
-                   (make-instance 'emdocs-client
-                                  :process sock
-                                  :attached-buffer buffer
-                                  :ip ip))
-      (unless (find ip *emdocs-outgoing-clients*
+    (when ip
+      (unless (find ip *emdocs-incoming-clients*
                     :test #'emdocs-is-ip-from-client)
-        (emdocs-connect-client buffer ip))
-      (emdocs-broadcast-message msg))))
+        (add-to-list '*emdocs-incoming-clients*
+                     (make-instance 'emdocs-client
+                                    :process sock
+                                    :attached-buffer buffer
+                                    :ip ip))
+        (unless (find ip *emdocs-outgoing-clients*
+                      :test #'emdocs-is-ip-from-client)
+          (emdocs-connect-client buffer ip))
+        (emdocs-broadcast-message msg)))))
 
 (defun emdocs-setup-server (my-ip)
   "docstring"
