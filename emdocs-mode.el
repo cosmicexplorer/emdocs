@@ -244,19 +244,20 @@ connected."
                          (goto-char cur-point)
                          (delete-char content)))
                      (setq emdocs-is-network-insert nil))))))
-            (buffer-contents
-             (with-current-buffer buffer
-               (when emdocs-mode
-                 (let ((prev-point (point)))
-                   (setq emdocs-is-network-insert t)
-                   (unwind-protect
-                       (progn
-                         (goto-char cur-start)
-                         (if (= cur-start (point-min))
-                             (erase-buffer))
-                         (insert buffer-contents)
-                         (goto-char prev-point))
-                     (setq emdocs-is-network-insert nil))))))))))
+            ;; (buffer-contents
+            ;;  (with-current-buffer buffer
+            ;;    (when emdocs-mode
+            ;;      (let ((prev-point (point)))
+            ;;        (setq emdocs-is-network-insert t)
+            ;;        (unwind-protect
+            ;;            (progn
+            ;;              (goto-char cur-start)
+            ;;              (if (= cur-start (point-min))
+            ;;                  (erase-buffer))
+            ;;              (insert buffer-contents)
+            ;;              (goto-char prev-point))
+            ;;          (setq emdocs-is-network-insert nil))))))
+            ))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
