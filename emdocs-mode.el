@@ -287,15 +287,12 @@ connected."
          (make-network-process
           :buffer buffer
           :family 'ipv4
-          :filter (lambda (sock msg)
-                    (with-current-buffer buffer
-                      (insert msg)))
           :host ip
           :service +emdocs-http-port+
           :server nil
           :noquery t)
          (json-encode `(:buffer ,buffer
-                        :dump_buffer t)))))))
+                        :dump_buffer ,t)))))))
 
 (defun emdocs-broadcast-message (msg)
   "docstring"
