@@ -129,7 +129,9 @@ connected."
                       (json-encode
                        `(:buffer ,buffer
                          :buffer_contents ,(buffer-substring-no-properties
-                                                    cur-start cur-end)
+                                            (if (= cur-start (point-min))
+                                                (point-min)
+                                              (1-  cur-start)) cur-end)
                          :start ,cur-start
                          :end ,cur-end)))
                      (setq cur-start (+ cur-start chunk-size))
