@@ -187,16 +187,21 @@ connected."
             (emdocs-connect-client buffer ip))
         (with-current-buffer buffer
           (save-excursion
-            (setq emdocs-is-network-insert t)
-            (unwind-protect
-                (cond
-                 ((string-equal "insert" type)
-                  (goto-char cur-point)
-                  (insert content))
-                 ((string-equal "delete" type)
-                  (goto-char cur-point)
-                  (delete-char content)))
-              (setq emdocs-is-network-insert nil))))))))
+            (let ((tmp-undo-list buffer-undo-list))
+              (setq emdocs-is-network-insert t)
+              (setq-local buffer-undo-list nil)
+              (when (eq tmp-undo-list nil)
+                  (message "HELL"))
+              (unwind-protect
+                  (cond
+                   ((string-equal "insert" type)
+                    (goto-char cur-point)
+                    (insert content))
+                   ((string-equal "delete" type)
+                    (goto-char cur-point)
+                    (delete-char content)))
+                (setq emdocs-is-network-insert nil)
+                (setq-local buffer-undo-list tmp-undo-list)))))))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
