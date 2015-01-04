@@ -210,6 +210,7 @@ connected."
             (buffer-contents
              (with-current-buffer buffer
                (let ((prev-point (point)))
+                 (goto-char (point-min))
                  (erase-buffer)
                  (insert buffer-contents)
                  (goto-char prev-point))))))))
