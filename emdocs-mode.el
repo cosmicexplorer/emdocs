@@ -137,6 +137,7 @@ connected."
           (get-buffer-contents          ; if asking for contents of buffer
            (with-current-buffer buffer
              (process-send-string
+              sock
               (json-encode `(:buffer ,buffer
                              :buffer_contents ,(buffer-string)))))))))
 
