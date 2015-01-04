@@ -97,12 +97,7 @@ connected."
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
   (cond ((string-match "^open from [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\n$" msg)
-         (let ((ip (progn
-                     (string-match "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" msg)
-                     (match-string-no-properties 0 msg))))
-           (unless (find ip *emdocs-incoming-clients*
-                         :test #'emdocs-is-ip-from-client)
-             (process-send-string sock "give me buffer and ip\n"))))
+         (process-send-string sock "give me buffer and ip\n"))
         ((string-match "^connection broken by remote peer\n$" msg)
          (setq *emdocs-incoming-clients*
                (remove-if
@@ -110,41 +105,41 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
-(defun emdocs-broadcast-buffer-at-intervals (buffer sock)
-  "docstring"
-  (when (get-buffer buffer)
-    (with-current-buffer buffer
-      (when emdocs-mode
-        (let ((chunk-size 500))
-          (loop with cur-start = (point-min)
-                with cur-end = (if (< (point-max) chunk-size)
-                                   (point-max)
-                                 chunk-size)
-                with break-from-loop = nil
-                do (progn
-                     (when (= cur-end (point-max))
-                       (setq break-from-loop t))
-                     (run-at-time
-                      ".1 sec" nil
-                      (lambda ()
-                        (process-send-string
-                         sock
-                         (json-encode
-                          `(:buffer ,buffer
-                            :buffer_contents ,(buffer-substring-no-properties
-                                               (if (= cur-start (point-min))
-                                                   (point-min)
-                                                 (1-  cur-start)) cur-end)
-                            :start ,cur-start
-                            :end ,cur-end)))))
-                     (setq cur-start (+ cur-start chunk-size))
-                     (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
-                                       (point-max)
-                                     (+ cur-end chunk-size)))
-                     (if break-from-loop
-                         (return)))))
-        (run-at-time "1 min" nil
-                     #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
+;; (defun emdocs-broadcast-buffer-at-intervals (buffer sock)
+;;   "docstring"
+;;   (when (get-buffer buffer)
+;;     (with-current-buffer buffer
+;;       (when emdocs-mode
+;;         (let ((chunk-size 500))
+;;           (loop with cur-start = (point-min)
+;;                 with cur-end = (if (< (point-max) chunk-size)
+;;                                    (point-max)
+;;                                  chunk-size)
+;;                 with break-from-loop = nil
+;;                 do (progn
+;;                      (when (= cur-end (point-max))
+;;                        (setq break-from-loop t))
+;;                      (run-at-time
+;;                       ".1 sec" nil
+;;                       (lambda ()
+;;                         (process-send-string
+;;                          sock
+;;                          (json-encode
+;;                           `(:buffer ,buffer
+;;                             :buffer_contents ,(buffer-substring-no-properties
+;;                                                (if (= cur-start (point-min))
+;;                                                    (point-min)
+;;                                                  (1-  cur-start)) cur-end)
+;;                             :start ,cur-start
+;;                             :end ,cur-end)))))
+;;                      (setq cur-start (+ cur-start chunk-size))
+;;                      (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
+;;                                        (point-max)
+;;                                      (+ cur-end chunk-size)))
+;;                      (if break-from-loop
+;;                          (return)))))
+;;         (run-at-time "1 min" nil
+;;                      #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -165,8 +160,8 @@ connected."
                                          :process sock
                                          :attached-buffer buffer
                                          :ip ip))
-             (emdocs-broadcast-buffer-at-intervals buffer sock)
-             (unless (find ip *emdocs-outgoing-clients*
+             ;; (emdocs-broadcast-buffer-at-intervals buffer sock)
+              (unless (find ip *emdocs-outgoing-clients*
                            :test #'emdocs-is-ip-from-client)
                (emdocs-connect-client buffer ip))
              (emdocs-broadcast-message msg))))))
@@ -367,27 +362,24 @@ connected."
       "Keep in mind emdocs only works for private ip addresses."))
     (setq emdocs-mode nil)))
 
-(defun emdocs-test-if-client-attached-to-buffer (client)
-  (insert (emdocs-get-attached-buffer client) ",")
-  (insert (buffer-name) "\n")
-  (string-equal
-   (emdocs-get-attached-buffer client)
-   (buffer-name)))
+(defun emdocs-is-client-process-live (client)
+  (not (process-live-p
+        (emdocs-get-process client))))
 
 (defun emdocs-disconnect (buffer)
   "docstring"
   (with-current-buffer buffer
     (loop for client in *emdocs-outgoing-clients*
-          do (when (emdocs-test-if-client-attached-to-buffer client)
+          do (when (emdocs-is-client-process-live client)
                (delete-process (emdocs-get-process client))))
     (setq *emdocs-outgoing-clients*
-          (remove-if #'emdocs-test-if-client-attached-to-buffer
+          (remove-if #'emdocs-is-client-process-live
                      *emdocs-outgoing-clients*))
     (loop for client in *emdocs-incoming-clients*
-          do (when (emdocs-test-if-client-attached-to-buffer client)
+          do (when (emdocs-is-client-process-live client)
                (delete-process (emdocs-get-process client))))
     (setq *emdocs-incoming-clients*
-          (remove-if #'emdocs-test-if-client-attached-to-buffer
+          (remove-if #'emdocs-is-client-process-live
                      *emdocs-incoming-clients*))
     (setq-local after-change-functions
                 (remove emdocs-after-change-lambda after-change-functions))
