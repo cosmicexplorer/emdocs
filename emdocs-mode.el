@@ -153,7 +153,7 @@ none active. Returns an arbitrary interface if more than one is connected."
         `(:buffer ,(if (bufferp buffer)
                        (buffer-name buffer)
                      buffer)
-                  :ip ,(emdocs-get-internal-ip-address))))
+          :ip ,(emdocs-get-internal-ip-address))))
     (let* ((json-object-type 'plist)
            (json-msg (json-read-from-string msg))
            (buffer (plist-get json-msg :buffer))
@@ -275,7 +275,9 @@ none active. Returns an arbitrary interface if more than one is connected."
                                  buffer beg end prev-length))))
                 (setq-local after-change-functions
                             (cons emdocs-after-change-lambda
-                                  after-change-functions))))))
+                                  after-change-functions))
+                (add-hook 'kill-buffer-hook #'emdocs-disconnect)
+                (add-hook 'kill-emacs-hook #'emdocs-kill-server)))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
       (emdocs-disconnect))))
@@ -293,7 +295,9 @@ none active. Returns an arbitrary interface if more than one is connected."
           (string-equal "localhost" emdocs-ip-addr))
       (emdocs-attach-sockets-to-buffer (current-buffer) emdocs-ip-addr)
     (message
-"Invalid ip address. Keep in mind emdocs only works for private ip addresses.")
+     (concat
+      "Invalid ip address. "
+      "Keep in mind emdocs only works for private ip addresses."))
     (setq emdocs-mode nil)))
 
 (defun emdocs-test-if-client-attached-to-buffer (client)
@@ -322,7 +326,6 @@ none active. Returns an arbitrary interface if more than one is connected."
 ;;; interactives
 (defun emdocs-kill-server ()
   "docstring"
-  (interactive)
   (if (and *emdocs-server*
            (not (eq (process-status *emdocs-server*) 'closed)))
       (delete-process *emdocs-server*))
