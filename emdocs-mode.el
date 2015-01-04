@@ -287,6 +287,9 @@ connected."
          (make-network-process
           :buffer buffer
           :family 'ipv4
+          :filter (lambda (sock msg)
+                    (with-current-buffer buffer
+                      (insert msg)))
           :host ip
           :service +emdocs-http-port+
           :server nil
