@@ -112,7 +112,7 @@ connected."
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
-  ;; assumes will only receive json from emdocs-client-sentinel
+  ;; assumes will only receive json from emdocs-client-filter
   (with-current-buffer (emdocs-get-server-process-buffer)
     (goto-char (point-min))
     (insert "filter:" msg)
@@ -187,21 +187,26 @@ connected."
             (emdocs-connect-client buffer ip))
         (with-current-buffer buffer
           (save-excursion
-            (let ((tmp-undo-list buffer-undo-list))
-              (setq emdocs-is-network-insert t)
-              (setq-local buffer-undo-list nil)
-              (when (eq tmp-undo-list nil)
-                  (message "HELL"))
-              (unwind-protect
-                  (cond
-                   ((string-equal "insert" type)
-                    (goto-char cur-point)
-                    (insert content))
-                   ((string-equal "delete" type)
-                    (goto-char cur-point)
-                    (delete-char content)))
-                (setq emdocs-is-network-insert nil)
-                (setq-local buffer-undo-list tmp-undo-list)))))))))
+            (setq emdocs-is-network-insert t)
+            (unwind-protect
+                (cond
+                 ((string-equal "insert" type)
+                  (goto-char cur-point)
+                  (insert content))
+                 ((string-equal "delete" type)
+                  (goto-char cur-point)
+                  (delete-char content)))
+              (setq emdocs-is-network-insert nil))))))))
+
+(defun emdocs-ask-for-buffer-contents (buffer sock)
+  "docstring"
+  (when (process-live-p sock)
+    (process-send-string
+     (json-encode `(:get_buffer_contents ,t
+                    :buffer ,(if (bufferp buffer)
+                                 (buffer-name buffer)
+                               buffer))))
+    (run-at-time "1 min" nil #'emdocs-ask-for-buffer-contents buffer sock)))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
@@ -224,13 +229,16 @@ connected."
                                   :attached-buffer (if (bufferp buffer)
                                                        (buffer-name buffer)
                                                      buffer)
-                                  :ip ip)))))
+                                  :ip ip))
+      (emdocs-ask-for-buffer-contents buffer process))))
 
 (defun emdocs-broadcast-message (msg)
+  "docstring"
   (loop for client in *emdocs-incoming-clients*
         do (process-send-string (emdocs-get-process client) msg)))
 
 (defun emdocs-emit-keypress-json (buffer type point content)
+  "docstring"
   (emdocs-broadcast-message
    (json-encode
     `(:buffer ,(if (bufferp buffer)
@@ -241,6 +249,7 @@ connected."
       :content ,content))))
 
 (defun emdocs-after-change-function (buffer beg end prev-length)
+  "docstring"
   (with-current-buffer (buffer-name buffer)
     (if (boundp 'emdocs-is-network-insert)
         (unless emdocs-is-network-insert
