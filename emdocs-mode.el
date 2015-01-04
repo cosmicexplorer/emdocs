@@ -120,19 +120,25 @@ connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
-         (ip (plist-get json-msg :ip)))
-    (when ip
-      (unless (find ip *emdocs-incoming-clients*
-                    :test #'emdocs-is-ip-from-client)
-        (add-to-list '*emdocs-incoming-clients*
-                     (make-instance 'emdocs-client
-                                    :process sock
-                                    :attached-buffer buffer
-                                    :ip ip))
-        (unless (find ip *emdocs-outgoing-clients*
-                      :test #'emdocs-is-ip-from-client)
-          (emdocs-connect-client buffer ip))
-        (emdocs-broadcast-message msg)))))
+         (ip (plist-get json-msg :ip))
+         (get-buffer-contents (plist-get json-msg :get_buffer_contents)))
+    (cond (ip                           ; if given buffer and ip to connect to
+           (unless (find ip *emdocs-incoming-clients*
+                         :test #'emdocs-is-ip-from-client)
+             (add-to-list '*emdocs-incoming-clients*
+                          (make-instance 'emdocs-client
+                                         :process sock
+                                         :attached-buffer buffer
+                                         :ip ip))
+             (unless (find ip *emdocs-outgoing-clients*
+                           :test #'emdocs-is-ip-from-client)
+               (emdocs-connect-client buffer ip))
+             (emdocs-broadcast-message msg)))
+          (get-buffer-contents          ; if asking for contents of buffer
+           (with-current-buffer buffer
+             (process-send-string
+              (json-encode `(:buffer ,buffer
+                             :buffer_contents ,(buffer-string)))))))))
 
 (defun emdocs-setup-server (my-ip)
   "docstring"
