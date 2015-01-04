@@ -97,7 +97,12 @@ connected."
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
   (cond ((string-match "^open from [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\n$" msg)
-         (process-send-string sock "give me buffer and ip\n"))
+         (let ((ip (progn
+                     (string-match "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+" msg)
+                     (match-string-no-properties 0 msg))))
+           (unless (find ip *emdocs-incoming-clients*
+                         :test #'emdocs-is-ip-from-client)
+             (process-send-string sock "give me buffer and ip\n"))))
         ((string-match "^connection broken by remote peer\n$" msg)
          (setq *emdocs-incoming-clients*
                (remove-if
@@ -362,24 +367,28 @@ connected."
       "Keep in mind emdocs only works for private ip addresses."))
     (setq emdocs-mode nil)))
 
-(defun emdocs-is-client-process-live (client)
-  (not (process-live-p
-        (emdocs-get-process client))))
+(defun emdocs-client-attached-to-buffer-p (client)
+  (string-equal
+   (emdocs-get-attached-buffer client)
+   (buffer-name)))
+
+(defun emdocs-client-dead-p (client)
+  (not (process-live-p (emdocs-get-process client))))
 
 (defun emdocs-disconnect (buffer)
   "docstring"
   (with-current-buffer buffer
     (loop for client in *emdocs-outgoing-clients*
-          do (when (emdocs-is-client-process-live client)
+          do (when (emdocs-client-attached-to-buffer-p client)
                (delete-process (emdocs-get-process client))))
     (setq *emdocs-outgoing-clients*
-          (remove-if #'emdocs-is-client-process-live
+          (remove-if #'emdocs-client-dead-p
                      *emdocs-outgoing-clients*))
     (loop for client in *emdocs-incoming-clients*
-          do (when (emdocs-is-client-process-live client)
+          do (when (emdocs-client-attached-to-buffer-p client)
                (delete-process (emdocs-get-process client))))
     (setq *emdocs-incoming-clients*
-          (remove-if #'emdocs-is-client-process-live
+          (remove-if #'emdocs-client-dead-p
                      *emdocs-incoming-clients*))
     (setq-local after-change-functions
                 (remove emdocs-after-change-lambda after-change-functions))
