@@ -124,16 +124,19 @@ connected."
                 do (progn
                      (when (= cur-end (point-max))
                        (setq break-from-loop t))
-                     (process-send-string
-                      sock
-                      (json-encode
-                       `(:buffer ,buffer
-                         :buffer_contents ,(buffer-substring-no-properties
-                                            (if (= cur-start (point-min))
-                                                (point-min)
-                                              (1-  cur-start)) cur-end)
-                         :start ,cur-start
-                         :end ,cur-end)))
+                     (run-at-time
+                      ".1 sec" nil
+                      (lambda ()
+                        (process-send-string
+                         sock
+                         (json-encode
+                          `(:buffer ,buffer
+                            :buffer_contents ,(buffer-substring-no-properties
+                                               (if (= cur-start (point-min))
+                                                   (point-min)
+                                                 (1-  cur-start)) cur-end)
+                            :start ,cur-start
+                            :end ,cur-end)))))
                      (setq cur-start (+ cur-start chunk-size))
                      (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
                                        (point-max)
