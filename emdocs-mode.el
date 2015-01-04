@@ -291,6 +291,7 @@ connected."
                 (setq *emdocs-server* nil)
                 (setq emdocs-mode nil)
                 (emdocs-disconnect))
+            (emdocs-broadcast-buffer-at-intervals buffer)
             (setq emdocs-initial-client nil)
             (unless (or (string-equal ip "localhost")
                         (string-equal ip ""))
@@ -313,8 +314,7 @@ connected."
                             (cons emdocs-after-change-lambda
                                   after-change-functions))
                 (add-hook 'kill-buffer-hook #'emdocs-disconnect)
-                (add-hook 'kill-emacs-hook #'emdocs-kill-server)
-                (emdocs-broadcast-buffer-at-intervals buffer)))))
+                (add-hook 'kill-emacs-hook #'emdocs-kill-server)))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
       (emdocs-disconnect))))
