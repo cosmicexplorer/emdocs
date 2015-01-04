@@ -115,10 +115,28 @@ connected."
   (when (get-buffer buffer)
     (with-current-buffer buffer
       (when emdocs-mode
-        (process-send-string
-         sock
-         (json-encode `(:buffer ,buffer
-                        :buffer_contents ,(buffer-string))))
+        (loop with cur-start = (point-min)
+              with cur-end = (if (< (point-max) 500)
+                                 (point-max)
+                               500)
+              with break-from-loop = nil
+              do (progn
+                   (when (= cur-end (point-max))
+                     (setq break-from-loop t))
+                   (process-send-string
+                    sock
+                    (json-encode
+                     `(:buffer ,buffer
+                       :buffer_contents ,(buffer-substring-no-properties
+                                                  cur-start cur-end)
+                       :start ,cur-start
+                       :end ,cur-end)))
+                   (setq cur-start (+ cur-start 500))
+                   (setq cur-end (if (< (point-max) (+ cur-end 500))
+                                     (point-max)
+                                   (+ cur-end 500)))
+                   (if break-from-loop
+                       (return))))
         (run-at-time "1 min" nil
                      #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
 
