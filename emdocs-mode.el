@@ -188,23 +188,31 @@ connected."
            (ip (plist-get json-msg :ip))
            (type (plist-get json-msg :edit_type))
            (cur-point (plist-get json-msg :point))
-           (content (plist-get json-msg :content)))
-      (if ip ; if being told to connect
-          (unless (find ip *emdocs-outgoing-clients*
-                        :test #'emdocs-is-ip-from-client)
-            (emdocs-connect-client buffer ip))
-        (with-current-buffer buffer
-          (save-excursion
-            (setq emdocs-is-network-insert t)
-            (unwind-protect
-                (cond
-                 ((string-equal "insert" type)
-                  (goto-char cur-point)
-                  (insert content))
-                 ((string-equal "delete" type)
-                  (goto-char cur-point)
-                  (delete-char content)))
-              (setq emdocs-is-network-insert nil))))))))
+           (content (plist-get json-msg :content))
+           (buffer-contents (plist-get json-msg :buffer_contents)))
+      (cond (ip                       ; if being told to connect
+             (unless (find ip *emdocs-outgoing-clients*
+                           :test #'emdocs-is-ip-from-client)
+               (emdocs-connect-client buffer ip)))
+            (cur-point
+             (with-current-buffer buffer
+               (save-excursion
+                 (setq emdocs-is-network-insert t)
+                 (unwind-protect
+                     (cond
+                      ((string-equal "insert" type)
+                       (goto-char cur-point)
+                       (insert content))
+                      ((string-equal "delete" type)
+                       (goto-char cur-point)
+                       (delete-char content)))
+                   (setq emdocs-is-network-insert nil)))))
+            (buffer-contents
+             (with-current-buffer buffer
+               (let ((prev-point (point)))
+                 (erase-buffer)
+                 (insert buffer-contents)
+                 (goto-char prev-point))))))))
 
 (defun emdocs-ask-for-buffer-contents (buffer sock)
   "docstring"
