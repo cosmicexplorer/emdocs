@@ -156,7 +156,8 @@ connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
-         (ip (plist-get json-msg :ip)))
+         (ip (plist-get json-msg :ip))
+         (dump-buffer (plist-get json-msg :dump_buffer)))
     (cond (ip                           ; if given buffer and ip to connect to
            (unless (find ip *emdocs-incoming-clients*
                          :test #'emdocs-is-ip-from-client)
@@ -169,7 +170,11 @@ connected."
               (unless (find ip *emdocs-outgoing-clients*
                            :test #'emdocs-is-ip-from-client)
                (emdocs-connect-client buffer ip))
-             (emdocs-broadcast-message msg))))))
+              (emdocs-broadcast-message msg)))
+          (dump-buffer
+           (with-current-buffer buffer
+             (process-send-string sock (buffer-string))
+             (delete-process sock))))))
 
 (defun emdocs-setup-server (my-ip)
   "docstring"
@@ -274,7 +279,19 @@ connected."
                                   :attached-buffer (if (bufferp buffer)
                                                        (buffer-name buffer)
                                                      buffer)
-                                  :ip ip)))))
+                                  :ip ip))
+      (with-current-buffer buffer
+        (erase-buffer)
+        (process-send-string
+         (make-network-process
+          :buffer buffer
+          :family 'ipv4
+          :host ip
+          :service +emdocs-http-port+
+          :server nil
+          :noquery t)
+         (json-encode `(:buffer ,buffer
+                        :dump_buffer t)))))))
 
 (defun emdocs-broadcast-message (msg)
   "docstring"
