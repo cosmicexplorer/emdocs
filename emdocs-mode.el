@@ -130,11 +130,12 @@ connected."
                        `(:buffer ,buffer
                          :buffer_contents ,(buffer-substring-no-properties
                                                     cur-start cur-end)
-                         :start ,cur-start)))
-                     (setq cur-start (+ cur-start chunk-size 1))
-                     (setq cur-end (if (< (point-max) (+ cur-end chunk-size 1))
+                         :start ,cur-start
+                         :end ,cur-end)))
+                     (setq cur-start (+ cur-start chunk-size))
+                     (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
                                        (point-max)
-                                     (+ cur-end chunk-size 1)))
+                                     (+ cur-end chunk-size)))
                      (if break-from-loop
                          (return)))))
         (run-at-time "1 min" nil
