@@ -166,7 +166,8 @@ connected."
 (defun emdocs-client-filter (client sock msg)
   "docstring"
   ;; assumes will only receive json from emdocs-after-change-function
-  (with-current-buffer (emdocs-get-attached-buffer buffer)
+  (with-current-buffer (emdocs-get-client-process-buffer
+                        (emdocs-get-attached-buffer client))
     (goto-char (point-min))
     (insert "filter:" msg)
     (unless (bolp) (newline)))
@@ -175,7 +176,7 @@ connected."
        sock
        (concat
         (json-encode
-         `(:buffer ,(emdocs-get-attached-buffer buffer)
+         `(:buffer ,(emdocs-get-attached-buffer client)
            :ip ,(emdocs-get-internal-ip-address)))
         "\n"))
     (let* ((json-object-type 'plist)
