@@ -245,6 +245,11 @@ connected."
     (unless (bolp) (newline)))
   ;; concatenate all messages (one per line) and deal with them one at a time
   (emdocs-set-cur-msg client (concat (emdocs-get-cur-msg client) msg))
+  (with-current-buffer (emdocs-get-client-process-buffer
+                        (emdocs-get-attached-buffer client))
+    (if (emdocs-extract-line (emdocs-get-cur-msg client))
+        (insert "HELL")
+      (insert "YA")))
   (loop with str-pair = (emdocs-extract-line (emdocs-get-cur-msg client))
         while str-pair
         do (progn
