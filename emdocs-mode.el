@@ -129,11 +129,13 @@ connected."
       (when emdocs-mode
         (process-send-string
          sock
-         (json-encode
-          `(:buffer ,(emdocs-get-attached-buffer client)
-            :buffer_contents ,(with-current-buffer
-                                  (emdocs-get-attached-buffer client)
-                                (buffer-string)))))
+         (concat
+          (json-encode
+           `(:buffer ,(emdocs-get-attached-buffer client)
+             :buffer_contents ,(with-current-buffer
+                                           (emdocs-get-attached-buffer client)
+                                         (buffer-string))))
+          "\n"))
           (run-at-time "1 min" nil
                        #'emdocs-send-file-periodically
                        client sock msg)))))
