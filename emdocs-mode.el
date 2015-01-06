@@ -137,7 +137,7 @@ connected."
                                            (emdocs-get-attached-buffer client)
                                          (buffer-string))))
           "\n"))
-          (run-at-time "10 sec" nil
+          (run-at-time "1 min" nil
                        #'emdocs-send-file-periodically
                        client sock msg)))))
 
@@ -372,7 +372,8 @@ connected."
                                    (buffer-name (current-buffer))
                                    buffer)
                               (emdocs-disconnect buffer))))
-                (add-hook 'kill-emacs-hook #'emdocs-kill-server)))))
+                (add-hook 'kill-emacs-hook #'emdocs-kill-server)
+                (add-hook 'change-major-mode-hook #'emdocs-mode)))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
       (emdocs-disconnect))))
@@ -444,7 +445,10 @@ connected."
             (define-key map (kbd "C-c C-c") #'emdocs-mode)
             map)
   (if emdocs-mode
-      (emdocs-connect (buffer-name))
+      (unwind-protect
+          (emdocs-connect (buffer-name))
+        (setq emdocs-mode nil)
+        (emdocs-disconnect (buffer-name)))
     (emdocs-disconnect (buffer-name))))
 
 (provide 'emdocs-mode)
