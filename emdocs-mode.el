@@ -241,7 +241,6 @@ connected."
                          (delete-char content)))
                      (setq emdocs-is-network-insert nil))))))
             (buffer-contents
-             (message "BUFFER INCOMING")
              (with-current-buffer buffer
                (when emdocs-mode
                  (let ((prev-point (point)))
