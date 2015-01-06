@@ -124,7 +124,8 @@ connected."
                 *emdocs-incoming-clients*)))))
 
 (defun emdocs-send-file-periodically (client sock msg)
-  (when (get-buffer (emdocs-get-attached-buffer client))
+  (when (and (get-buffer (emdocs-get-attached-buffer client))
+             (process-live-p (emdocs-get-process client)))
     (with-current-buffer (emdocs-get-attached-buffer client)
       (when emdocs-mode
         (process-send-string
