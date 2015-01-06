@@ -372,8 +372,7 @@ connected."
                                    (buffer-name (current-buffer))
                                    buffer)
                               (emdocs-disconnect buffer))))
-                (add-hook 'kill-emacs-hook #'emdocs-kill-server)
-                (add-hook 'change-major-mode-hook #'emdocs-mode)))))
+                (add-hook 'kill-emacs-hook #'emdocs-kill-server)))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
       (emdocs-disconnect))))
@@ -442,13 +441,10 @@ connected."
   "docstring"
   :lighter " MDox"
   :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "C-c C-c") #'emdocs-mode)
+            ;; (define-key map (kbd "C-c C-c") #'emdocs-mode)
             map)
   (if emdocs-mode
-      (unwind-protect
-          (emdocs-connect (buffer-name))
-        (setq emdocs-mode nil)
-        (emdocs-disconnect (buffer-name)))
+      (emdocs-connect (buffer-name))
     (emdocs-disconnect (buffer-name))))
 
 (provide 'emdocs-mode)
