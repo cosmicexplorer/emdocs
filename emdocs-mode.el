@@ -244,6 +244,9 @@ connected."
     (insert "filter:" msg)
     (unless (bolp) (newline)))
   ;; concatenate all messages (one per line) and deal with them one at a time
+  (with-current-buffer (emdocs-get-client-process-buffer
+                        (emdocs-get-attached-buffer client))
+    (insert "INIT:" (concat (emdocs-get-cur-msg client) msg)))
   (loop initially (emdocs-set-cur-msg
                    client (concat (emdocs-get-cur-msg client) msg))
         with str-pair = (emdocs-extract-line (emdocs-get-cur-msg client))
