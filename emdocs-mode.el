@@ -39,6 +39,7 @@
 
 (defclass emdocs-client ()
   ((process
+    :initform nil
     :initarg :process
     :accessor emdocs-get-process
     :documentation "docstring")
@@ -51,6 +52,9 @@
     :accessor emdocs-get-ip
     :documentation "docstring"))
   "docstring")
+
+(defmethod emdocs-set-process ((client emdocs-client) process)
+  (setf (emdocs-get-process client) process))
 
 ;;; functions
 
@@ -110,42 +114,6 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
-;; (defun emdocs-broadcast-buffer-at-intervals (buffer sock)
-;;   "docstring"
-;;   (when (get-buffer buffer)
-;;     (with-current-buffer buffer
-;;       (when emdocs-mode
-;;         (let ((chunk-size 500))
-;;           (loop with cur-start = (point-min)
-;;                 with cur-end = (if (< (point-max) chunk-size)
-;;                                    (point-max)
-;;                                  chunk-size)
-;;                 with break-from-loop = nil
-;;                 do (progn
-;;                      (when (= cur-end (point-max))
-;;                        (setq break-from-loop t))
-;;                      (run-at-time
-;;                       ".1 sec" nil
-;;                       (lambda ()
-;;                         (process-send-string
-;;                          sock
-;;                          (json-encode
-;;                           `(:buffer ,buffer
-;;                             :buffer_contents ,(buffer-substring-no-properties
-;;                                                (if (= cur-start (point-min))
-;;                                                    (point-min)
-;;                                                  (1-  cur-start)) cur-end)
-;;                             :start ,cur-start
-;;                             :end ,cur-end)))))
-;;                      (setq cur-start (+ cur-start chunk-size))
-;;                      (setq cur-end (if (< (point-max) (+ cur-end chunk-size))
-;;                                        (point-max)
-;;                                      (+ cur-end chunk-size)))
-;;                      (if break-from-loop
-;;                          (return)))))
-;;         (run-at-time "1 min" nil
-;;                      #'emdocs-broadcast-buffer-at-intervals buffer sock)))))
-
 (defun emdocs-server-filter (sock msg)
   "docstring"
   ;; assumes will only receive json from emdocs-client-filter
@@ -156,25 +124,18 @@ connected."
   (let* ((json-object-type 'plist)
          (json-msg (json-read-from-string msg))
          (buffer (plist-get json-msg :buffer))
-         (ip (plist-get json-msg :ip))
-         (dump-buffer (plist-get json-msg :dump_buffer)))
-    (cond (ip                           ; if given buffer and ip to connect to
-           (unless (find ip *emdocs-incoming-clients*
-                         :test #'emdocs-is-ip-from-client)
-             (add-to-list '*emdocs-incoming-clients*
-                          (make-instance 'emdocs-client
-                                         :process sock
-                                         :attached-buffer buffer
-                                         :ip ip))
-             ;; (emdocs-broadcast-buffer-at-intervals buffer sock)
-              (unless (find ip *emdocs-outgoing-clients*
-                           :test #'emdocs-is-ip-from-client)
-               (emdocs-connect-client buffer ip))
-              (emdocs-broadcast-message msg)))
-          (dump-buffer
-           (with-current-buffer buffer
-             (process-send-string sock (buffer-string))
-             (delete-process sock))))))
+         (ip (plist-get json-msg :ip)))
+    (unless (find ip *emdocs-incoming-clients*
+                  :test #'emdocs-is-ip-from-client)
+      (add-to-list '*emdocs-incoming-clients*
+                   (make-instance 'emdocs-client
+                                  :process sock
+                                  :attached-buffer buffer
+                                  :ip ip))
+      (unless (find ip *emdocs-outgoing-clients*
+                    :test #'emdocs-is-ip-from-client)
+        (emdocs-connect-client buffer ip))
+      (emdocs-broadcast-message msg))))
 
 (defun emdocs-setup-server (my-ip)
   "docstring"
@@ -189,9 +150,9 @@ connected."
    :server t
    :noquery t))
 
-(defun emdocs-client-sentinel (buffer sock msg)
+(defun emdocs-client-sentinel (client sock msg)
   "docstring"
-  (with-current-buffer (emdocs-get-client-process-buffer buffer)
+  (with-current-buffer (emdocs-get-attached-buffer client)
     (goto-char (point-min))
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
@@ -202,21 +163,23 @@ connected."
              (equal (emdocs-get-process client) sock))
            *emdocs-outgoing-clients*))))
 
-(defun emdocs-client-filter (buffer sock msg)
+(defun emdocs-client-filter (client sock msg)
   "docstring"
   ;; assumes will only receive json from emdocs-after-change-function
-  (with-current-buffer (emdocs-get-client-process-buffer buffer)
+  (with-current-buffer (emdocs-get-attached-buffer buffer)
     (goto-char (point-min))
     (insert "filter:" msg)
     (unless (bolp) (newline)))
   (if (string-match "^give me buffer and ip\n$" msg)
       (process-send-string
        sock
-       (json-encode
-        `(:buffer ,(if (bufferp buffer)
-                       (buffer-name buffer)
-                     buffer)
-          :ip ,(emdocs-get-internal-ip-address))))
+       (concat
+        (json-encode
+         `(:buffer ,(if (bufferp buffer)
+                        (buffer-name buffer)
+                      buffer)
+           :ip ,(emdocs-get-internal-ip-address)))
+        "\n"))
     (let* ((json-object-type 'plist)
            (json-msg (json-read-from-string msg))
            (buffer (plist-get json-msg :buffer))
@@ -224,14 +187,13 @@ connected."
            (type (plist-get json-msg :edit_type))
            (cur-point (plist-get json-msg :point))
            (content (plist-get json-msg :content))
-           (buffer-contents (plist-get json-msg :buffer_contents))
-           (cur-start (plist-get json-msg :start)))
+           (buffer-contents (plist-get json-msg :buffer_contents)))
       (cond (ip                       ; if being told to connect
              (unless (find ip *emdocs-outgoing-clients*
                            :test #'emdocs-is-ip-from-client)
                (emdocs-connect-client buffer ip)))
             (cur-point
-             (with-current-buffer buffer
+             (with-current-buffer (emdocs-get-attached-buffer client)
                (when emdocs-mode
                  (save-excursion
                    (setq emdocs-is-network-insert t)
@@ -244,55 +206,45 @@ connected."
                          (goto-char cur-point)
                          (delete-char content)))
                      (setq emdocs-is-network-insert nil))))))
-            ;; (buffer-contents
-            ;;  (with-current-buffer buffer
-            ;;    (when emdocs-mode
-            ;;      (let ((prev-point (point)))
-            ;;        (setq emdocs-is-network-insert t)
-            ;;        (unwind-protect
-            ;;            (progn
-            ;;              (goto-char cur-start)
-            ;;              (if (= cur-start (point-min))
-            ;;                  (erase-buffer))
-            ;;              (insert buffer-contents)
-            ;;              (goto-char prev-point))
-            ;;          (setq emdocs-is-network-insert nil))))))
-            ))))
+            (buffer-contents
+             (with-current-buffer (emdocs-get-attached-buffer client)
+               (when emdocs-mode
+                 (let ((prev-point (point)))
+                   (setq emdocs-is-network-insert t)
+                   (unwind-protect
+                       (progn
+                         (goto-char cur-start)
+                         (if (= cur-start (point-min))
+                             (erase-buffer))
+                         (insert buffer-contents)
+                         (goto-char prev-point))
+                     (setq emdocs-is-network-insert nil))))))))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
   (unless (string-equal ip (emdocs-get-internal-ip-address))
-    (let ((process (make-network-process
-                    :name (emdocs-get-client-process-name buffer ip)
-                    :buffer (emdocs-get-client-process-buffer buffer)
-                    :family 'ipv4
-                    :host ip
-                    :service +emdocs-http-port+
-                    :sentinel (lambda (sock msg)
-                                (emdocs-client-sentinel buffer sock msg))
-                    :filter (lambda (sock msg)
-                              (emdocs-client-filter buffer sock msg))
-                    :server nil
-                    :noquery t)))
-      (add-to-list '*emdocs-outgoing-clients*
-                   (make-instance 'emdocs-client
-                                  :process process
-                                  :attached-buffer (if (bufferp buffer)
+    (let ((new-client (make-instance 'emdocs-client
+                                   :attached-buffer (if (bufferp buffer)
                                                        (buffer-name buffer)
                                                      buffer)
-                                  :ip ip))
-      (with-current-buffer buffer
-        (erase-buffer)
-        (process-send-string
-         (make-network-process
-          :buffer buffer
-          :family 'ipv4
-          :host ip
-          :service +emdocs-http-port+
-          :server nil
-          :noquery t)
-         (json-encode `(:buffer ,buffer
-                        :dump_buffer ,t)))))))
+                                   :ip ip)))
+      (emdocs-set-process new-client
+                          (make-network-process
+                           :name (emdocs-get-client-process-name buffer ip)
+                           :buffer (emdocs-get-client-process-buffer buffer)
+                           :family 'ipv4
+                           :host ip
+                           :service +emdocs-http-port+
+                           :sentinel (lambda (sock msg)
+                                       (emdocs-client-sentinel
+                                        new-client sock msg))
+                           :filter (lambda (sock msg)
+                                     (emdocs-client-filter
+                                      new-client sock msg))
+                           :server nil
+                           :noquery t))
+      (add-to-list '*emdocs-outgoing-clients*
+                   new-client))))
 
 (defun emdocs-broadcast-message (msg)
   "docstring"
@@ -302,13 +254,15 @@ connected."
 (defun emdocs-emit-keypress-json (buffer type point content)
   "docstring"
   (emdocs-broadcast-message
-   (json-encode
-    `(:buffer ,(if (bufferp buffer)
-                   (buffer-name buffer)
-                 buffer)
-      :edit_type ,type
-      :point ,point
-      :content ,content))))
+   (concat
+    (json-encode
+     `(:buffer ,(if (bufferp buffer)
+                    (buffer-name buffer)
+                  buffer)
+       :edit_type ,type
+       :point ,point
+       :content ,content))
+    "\n")))
 
 (defun emdocs-after-change-function (buffer beg end prev-length)
   "docstring"
@@ -412,13 +366,14 @@ connected."
                 (remove emdocs-after-change-lambda after-change-functions))
     (setq-local emdocs-after-change-lambda nil)))
 
-;;; interactives
 (defun emdocs-kill-server ()
   "docstring"
   (if (and *emdocs-server*
            (not (eq (process-status *emdocs-server*) 'closed)))
       (delete-process *emdocs-server*))
   (setq *emdocs-server* nil))
+
+;;; interactives
 
 (defun emdocs-get-ip-address ()
   (interactive)
