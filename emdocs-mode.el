@@ -314,7 +314,12 @@ connected."
                 (setq-local after-change-functions
                             (cons emdocs-after-change-lambda
                                   after-change-functions))
-                (add-hook 'kill-buffer-hook #'emdocs-disconnect)
+                (add-hook 'kill-buffer-hook
+                          (lambda ()
+                            (when (string-equal
+                                   (buffer-name (current-buffer))
+                                   buffer)
+                              (emdocs-disconnect buffer))))
                 (add-hook 'kill-emacs-hook #'emdocs-kill-server)))))
       (message "Not connected to internet: exiting.")
       (setq emdocs-mode nil)
