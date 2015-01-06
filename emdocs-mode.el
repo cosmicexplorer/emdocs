@@ -50,11 +50,20 @@
    (ip
     :initarg :ip
     :accessor emdocs-get-ip
+    :documentation "docstring")
+   (cur-msg
+    :initform ""
+    :accessor emdocs-get-cur-msg
     :documentation "docstring"))
   "docstring")
 
 (defmethod emdocs-set-process ((client emdocs-client) process)
+  "docstring"
   (setf (emdocs-get-process client) process))
+
+(defmethod emdocs-set-cur-msg ((client emdocs-client) msg)
+  "docstring"
+  (setf (emdocs-get-cur-msg client) msg))
 
 ;;; functions
 
@@ -152,7 +161,8 @@ connected."
 
 (defun emdocs-client-sentinel (client sock msg)
   "docstring"
-  (with-current-buffer (emdocs-get-attached-buffer client)
+  (with-current-buffer (emdocs-get-client-process-buffer
+                        (emdocs-get-attached-buffer client))
     (goto-char (point-min))
     (insert "sentinel:" msg)
     (unless (bolp) (newline)))
@@ -163,14 +173,21 @@ connected."
              (equal (emdocs-get-process client) sock))
            *emdocs-outgoing-clients*))))
 
-(defun emdocs-client-filter (client sock msg)
+(defun emdocs-extract-line (str)
   "docstring"
-  ;; assumes will only receive json from emdocs-after-change-function
-  (with-current-buffer (emdocs-get-client-process-buffer
-                        (emdocs-get-attached-buffer client))
-    (goto-char (point-min))
-    (insert "filter:" msg)
-    (unless (bolp) (newline)))
+  ;; returns cons containing:
+  ;; car: the first line
+  ;; cdr: the string without the first line
+  (let ((res (string-match ".*\n" str)))
+    (if res
+        (let* ((matched-str (match-string-no-properties 0 str))
+               (match-length (length matched-str))
+               (removed-str (substring str match-length)))
+          (cons matched-str removed-str))
+      nil)))
+
+(defun emdocs-client-filter-parse (client sock msg)
+  "docstring"
   (if (string-match "^give me buffer and ip\n$" msg)
       (process-send-string
        sock
@@ -218,6 +235,24 @@ connected."
                          (insert buffer-contents)
                          (goto-char prev-point))
                      (setq emdocs-is-network-insert nil))))))))))
+
+(defun emdocs-client-filter (client sock msg)
+  "docstring"
+  (with-current-buffer (emdocs-get-client-process-buffer
+                        (emdocs-get-attached-buffer client))
+    (goto-char (point-min))
+    (insert "filter:" msg)
+    (unless (bolp) (newline)))
+  ;; concatenate all messages (one per line) and deal with them one at a time
+  (loop initially (emdocs-set-cur-msg
+                   client (concat (emdocs-get-cur-msg client) msg))
+        with str-pair = (emdocs-extract-line (emdocs-get-cur-msg client))
+        while str-pair
+        do (progn
+             (emdocs-set-cur-msg client (cdr str-pair))
+             (emdocs-client-filter-parse client sock (car str-pair))
+             (setq str-pair
+                   (emdocs-extract-line (emdocs-get-cur-msg client))))))
 
 (defun emdocs-connect-client (buffer ip)
   "docstring"
