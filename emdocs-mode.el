@@ -136,7 +136,7 @@ connected."
                                            (emdocs-get-attached-buffer client)
                                          (buffer-string))))
           "\n"))
-          (run-at-time "1 min" nil
+          (run-at-time "10 sec" nil
                        #'emdocs-send-file-periodically
                        client sock msg)))))
 
