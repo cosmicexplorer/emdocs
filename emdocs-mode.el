@@ -245,9 +245,8 @@ connected."
                    (setq emdocs-is-network-insert t)
                    (unwind-protect
                        (progn
-                         (goto-char cur-start)
-                         (if (= cur-start (point-min))
-                             (erase-buffer))
+                         (goto-char (point-min))
+                         (erase-buffer)
                          (insert buffer-contents)
                          (goto-char prev-point))
                      (setq emdocs-is-network-insert nil))))))))))
