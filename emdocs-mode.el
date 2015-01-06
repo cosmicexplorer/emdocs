@@ -250,6 +250,9 @@ connected."
         while str-pair
         do (progn
              (emdocs-set-cur-msg client (cdr str-pair))
+             (with-current-buffer (emdocs-get-client-process-buffer
+                                   (emdocs-get-attached-buffer client))
+               (insert "MODDED:" (car str-pair) "," (cdr str-pair)))
              (emdocs-client-filter-parse client sock (car str-pair))
              (setq str-pair
                    (emdocs-extract-line (emdocs-get-cur-msg client))))))
