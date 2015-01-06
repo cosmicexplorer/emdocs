@@ -175,9 +175,7 @@ connected."
        sock
        (concat
         (json-encode
-         `(:buffer ,(if (bufferp buffer)
-                        (buffer-name buffer)
-                      buffer)
+         `(:buffer ,(emdocs-get-attached-buffer buffer)
            :ip ,(emdocs-get-internal-ip-address)))
         "\n"))
     (let* ((json-object-type 'plist)
@@ -193,7 +191,7 @@ connected."
                            :test #'emdocs-is-ip-from-client)
                (emdocs-connect-client buffer ip)))
             (cur-point
-             (with-current-buffer (emdocs-get-attached-buffer client)
+             (with-current-buffer buffer
                (when emdocs-mode
                  (save-excursion
                    (setq emdocs-is-network-insert t)
@@ -207,7 +205,7 @@ connected."
                          (delete-char content)))
                      (setq emdocs-is-network-insert nil))))))
             (buffer-contents
-             (with-current-buffer (emdocs-get-attached-buffer client)
+             (with-current-buffer buffer
                (when emdocs-mode
                  (let ((prev-point (point)))
                    (setq emdocs-is-network-insert t)
