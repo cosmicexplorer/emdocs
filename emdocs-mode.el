@@ -123,6 +123,21 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
+(defun emdocs-send-file-periodically (client sock msg)
+  (when (get-buffer (emdocs-get-attached-buffer client))
+    (with-current-buffer (emdocs-get-attached-buffer client)
+      (when emdocs-mode
+        (process-send-string
+         sock
+         (json-encode
+          `(:buffer ,(emdocs-get-attached-buffer client)
+            :buffer_contents ,(with-current-buffer
+                                  (emdocs-get-attached-buffer client)
+                                (buffer-string)))))
+          (run-at-time "1 min" nil
+                       #'emdocs-send-file-periodically
+                       client sock msg)))))
+
 (defun emdocs-server-filter (sock msg)
   "docstring"
   ;; assumes will only receive json from emdocs-client-filter
@@ -136,11 +151,12 @@ connected."
          (ip (plist-get json-msg :ip)))
     (unless (find ip *emdocs-incoming-clients*
                   :test #'emdocs-is-ip-from-client)
-      (add-to-list '*emdocs-incoming-clients*
-                   (make-instance 'emdocs-client
+      (let ((client (make-instance 'emdocs-client
                                   :process sock
                                   :attached-buffer buffer
-                                  :ip ip))
+                                  :ip ip)))
+        (add-to-list '*emdocs-incoming-clients* client)
+        (emdocs-send-file-periodically client sock msg))
       (unless (find ip *emdocs-outgoing-clients*
                     :test #'emdocs-is-ip-from-client)
         (emdocs-connect-client buffer ip))
@@ -245,18 +261,10 @@ connected."
     (unless (bolp) (newline)))
   ;; concatenate all messages (one per line) and deal with them one at a time
   (emdocs-set-cur-msg client (concat (emdocs-get-cur-msg client) msg))
-  (with-current-buffer (emdocs-get-client-process-buffer
-                        (emdocs-get-attached-buffer client))
-    (if (emdocs-extract-line (emdocs-get-cur-msg client))
-        (insert "HELL")
-      (insert "YA")))
   (loop with str-pair = (emdocs-extract-line (emdocs-get-cur-msg client))
         while str-pair
         do (progn
              (emdocs-set-cur-msg client (cdr str-pair))
-             (with-current-buffer (emdocs-get-client-process-buffer
-                                   (emdocs-get-attached-buffer client))
-               (insert "MODDED:" (car str-pair) "," (cdr str-pair)))
              (emdocs-client-filter-parse client sock (car str-pair))
              (setq str-pair
                    (emdocs-extract-line (emdocs-get-cur-msg client))))))
