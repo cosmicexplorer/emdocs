@@ -41,6 +41,9 @@
 (defvar-local emdocs-undo-list nil
   "docstring")
 
+(defvar-local emdocs-undo-posn nil
+  "docstring")
+
 ;;; classes
 
 (defclass emdocs-client ()
@@ -129,6 +132,10 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
+;;; TODO: make resyncing the file a command
+;;; TODO: make the user send file automatically whenever a large amount of text
+;;; is inserted
+
 (defun emdocs-send-file (client sock msg)
   (when (and (get-buffer (emdocs-get-attached-buffer client))
              (process-live-p (emdocs-get-process client)))
@@ -138,13 +145,11 @@ connected."
          sock
          (concat
           (json-encode
-           `(:buffer ,(emdocs-get-attached-buffer client)
-             :buffer_contents ,(with-current-buffer
-                                           (emdocs-get-attached-buffer client)
-                                         (buffer-string))))
+           (list :buffer (emdocs-get-attached-buffer client)
+                 :buffer_contents (with-current-buffer
+                                      (emdocs-get-attached-buffer client)
+                                    (buffer-string))))
           "\n"))))))
-
-;;; TODO: make resyncing the file a command
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -217,8 +222,8 @@ connected."
        sock
        (concat
         (json-encode
-         `(:buffer ,(emdocs-get-attached-buffer client)
-           :ip ,(emdocs-get-internal-ip-address)))
+         (list :buffer (emdocs-get-attached-buffer client)
+               :ip (emdocs-get-internal-ip-address)))
         "\n"))
     (let* ((json-object-type 'plist)
            (json-msg (json-read-from-string msg))
@@ -313,12 +318,12 @@ connected."
   (emdocs-broadcast-message
    (concat
     (json-encode
-     `(:buffer ,(if (bufferp buffer)
-                    (buffer-name buffer)
-                  buffer)
-       :edit_type ,type
-       :point ,point
-       :content ,content))
+     (list :buffer (if (bufferp buffer)
+                       (buffer-name buffer)
+                     buffer)
+           :edit_type type
+           :point point
+           :content content))
     "\n")))
 
 (defun emdocs-after-change-function (buffer beg end prev-length)
@@ -328,9 +333,9 @@ connected."
                          buffer)
     (when (= prev-length 0)
       (setq-local emdocs-undo-list
-                  (cons `(:type ,"insert" :point ,beg
-                          :content ,(buffer-substring-no-properties beg end)
-                          :local ,(not emdocs-is-network-insert))
+                  (cons (list :type "insert" :point beg :end end
+                              :content (buffer-substring-no-properties beg end)
+                              :local (not emdocs-is-network-insert))
                         emdocs-undo-list)))
     (when (and (boundp 'emdocs-is-network-insert)
                (not emdocs-is-network-insert))
@@ -340,17 +345,103 @@ connected."
                 (buffer-substring-no-properties beg end)))
               ((= beg end)
                (emdocs-emit-keypress-json
-                buffer "delete" beg prev-length))))))
+                buffer "delete" beg prev-length))))
+    (unless emdocs-is-network-insert
+        (setq-local emdocs-undo-posn emdocs-undo-list))))
 
 (defun emdocs-before-change-function (buffer beg end)
   "docstring"
   (with-current-buffer buffer
     (when (/= beg end)
       (setq-local emdocs-undo-list
-                  (cons `(:type ,"delete" :point ,beg
-                          :content ,(buffer-substring-no-properties beg end)
-                          :local ,(not emdocs-is-network-insert))
+                  (cons (list :type "delete" :point beg :end end
+                              :content (buffer-substring-no-properties beg end)
+                              :local (not emdocs-is-network-insert))
                         emdocs-undo-list)))))
+
+(defun emdocs-parse-undo (undo-action-list remote-edits)
+  "docstring"
+  ;; remote-edits must be in chronological order from head of list!
+  ;; this is OPPOSITE the order they are in emdocs-undo-list!
+  (if undo-action-list
+      (save-excursion
+        (cond
+         ((string-equal (plist-get (car undo-action-list) :type) "delete")
+          (loop
+           for edit in remote-edits
+           do (cond
+               ((string-equal (plist-get edit :type) "insert")
+                (when (<= (plist-get edit :point)
+                          (plist-get (car undo-action-list) :point))
+                  (plist-put (car undo-action-list) :point
+                             (+ (plist-get (car undo-action-list) :point)
+                                (length (plist-get edit :content))))))
+               ((string-equal (plist-get edit :type) "delete")
+                (when (<= (plist-get edit :point)
+                          (plist-get (car undo-action-list :point)))
+                  (if (<= (+ (plist-get edit :point)
+                             (length (plist-get edit :content)))
+                          (plist-get (car undo-action-list) :point))
+                      (plist-put
+                       (car undo-action-list) :point
+                       (- (plist-get (car undo-action-list) :point)
+                          (length (plist-get edit :content))))
+                    (plist-put
+                     (car undo-action-list) :point
+                     (+ (- (plist-get (car undo-action-list) :point)
+                           (length (plist-get edit :content)))
+                        (- (+ (plist-get edit :point)
+                              (length (plist-get edit :content)))
+                           (plist-get (car undo-action-list) :point)))))))))
+          (goto-char (plist-get (car undo-action-list) :point))
+          (insert (plist-get (car undo-action-list) :content)))
+         ((string-equal (plist-get (car undo-action-list) :type) "insert")
+          (loop
+           for edit in remote-edits
+           do (cond ((string-equal (plist-get edit :type) "insert")
+                     ())
+                    ((string-equal (plist-get edit :type) "delete")
+                     ())))
+          (goto-char (plist-get (car undo-action-list) :point))
+          (delete-char (length (plist-get (car undo-action-list) :content))))))
+    (message "No more undo information available!")))
+
+(defun emdocs-undo ()
+  "docstring"
+  (interactive)
+  (let ((remote-edits
+         (loop while emdocs-undo-posn
+               while (not (plist-get emdocs-undo-posn :local))
+               collect (car emdocs-undo-posn)
+               do (setq-local emdocs-undo-posn (cdr emdocs-undo-posn)))))
+    (emdocs-parse-undo emdocs-undo-posn (reverse remote-edits)))
+  (setq-local emdocs-undo-posn (cdr emdocs-undo-posn)))
+
+;;; testing language features
+;; (loop for num in '(2 3 4)
+;;       do (insert (number-to-string num) ",")) ; works; does in order
+;; (setq a `(:foo 3))
+;; (setf (plist-get a :foo) 4)             ; doesn't work
+;; (setq b '(2 3 4 5))
+;; (setf (cadr b) 7)                       ; works; can set
+;; (defun set-to-3 (arg)
+;;   (setf (car arg) 3))
+;; (set-to-3 (cdr b))                      ; works; sets appropriately
+;; (let* ((list '(2 3 4 5 6 7))
+;;        (list-ptr list)
+;;        (coll
+;;         (loop while list-ptr
+;;               while (<= (car list-ptr) 8)
+;;               collect (car list-ptr)
+;;               do (setq list-ptr (cdr list-ptr)))))
+;;   `(,list-ptr ,(reverse coll)))         ; works
+;; (loop while nil
+;;       collect 3)                        ; works; collect is nil
+;; (loop for e in nil
+;;       do (insert "hey"))                ; works; no insertion
+;; (setq c (list (list :foo "a" :bar "b")
+;;               (list :foo "c" :bar "d")))
+;; (plist-put (car c) :foo "l")            ; works; destructively modifies c
 
 (defun emdocs-attach-to-buffer (buffer ip)
   "docstring"
