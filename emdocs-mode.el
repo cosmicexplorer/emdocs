@@ -129,7 +129,7 @@ connected."
                   (equal (emdocs-get-process client) sock))
                 *emdocs-incoming-clients*)))))
 
-(defun emdocs-send-file-periodically (client sock msg)
+(defun emdocs-send-file (client sock msg)
   (when (and (get-buffer (emdocs-get-attached-buffer client))
              (process-live-p (emdocs-get-process client)))
     (with-current-buffer (emdocs-get-attached-buffer client)
@@ -142,10 +142,9 @@ connected."
              :buffer_contents ,(with-current-buffer
                                            (emdocs-get-attached-buffer client)
                                          (buffer-string))))
-          "\n"))
-          (run-at-time "1 min" nil
-                       #'emdocs-send-file-periodically
-                       client sock msg)))))
+          "\n"))))))
+
+;;; TODO: make resyncing the file a command
 
 (defun emdocs-server-filter (sock msg)
   "docstring"
@@ -165,7 +164,7 @@ connected."
                                   :attached-buffer buffer
                                   :ip ip)))
         (add-to-list '*emdocs-incoming-clients* client)
-        (emdocs-send-file-periodically client sock msg))
+        (emdocs-send-file client sock msg))
       (unless (find ip *emdocs-outgoing-clients*
                     :test #'emdocs-is-ip-from-client)
         (emdocs-connect-client buffer ip))
@@ -237,7 +236,7 @@ connected."
              (with-current-buffer buffer
                (when emdocs-mode
                  (save-excursion
-                   (setq emdocs-is-network-insert t)
+                   (setq-local emdocs-is-network-insert t)
                    (unwind-protect
                        (cond
                         ((string-equal "insert" type)
@@ -246,19 +245,20 @@ connected."
                         ((string-equal "delete" type)
                          (goto-char cur-point)
                          (delete-char content)))
-                     (setq emdocs-is-network-insert nil))))))
+                     (setq-local emdocs-is-network-insert nil))))))
             (buffer-contents
              (with-current-buffer buffer
                (when emdocs-mode
                  (let ((prev-point (point)))
-                   (setq emdocs-is-network-insert t)
+                   (setq-local emdocs-is-network-insert t)
                    (unwind-protect
                        (progn
                          (goto-char (point-min))
                          (erase-buffer)
                          (insert buffer-contents)
                          (goto-char prev-point))
-                     (setq emdocs-is-network-insert nil))))))))))
+                     (setq-local emdocs-is-network-insert nil)
+                     (setq-local emdocs-undo-list nil))))))))))
 
 (defun emdocs-client-filter (client sock msg)
   "docstring"
