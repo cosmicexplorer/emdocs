@@ -333,7 +333,7 @@ connected."
                           :local ,(not emdocs-is-network-insert))
                         emdocs-undo-list)))
     (when (and (boundp 'emdocs-is-network-insert)
-               emdocs-is-network-insert)
+               (not emdocs-is-network-insert))
         (cond ((= prev-length 0)
                (emdocs-emit-keypress-json
                 buffer "insert" beg
