@@ -32,10 +32,7 @@
 (defvar-local emdocs-is-network-insert nil
   "docstring")
 
-(defvar-local emdocs-after-change-lambda nil
-  "docstring")
-
-(defvar-local emdocs-before-change-lambda nil
+(defvar-local emdocs-is-undo-insert nil
   "docstring")
 
 (defvar-local emdocs-undo-list nil
@@ -94,9 +91,7 @@ connected."
 
 (defun emdocs-get-client-process-buffer (buffer)
   "docstring"
-  (if (bufferp buffer)
-      (concat "*emdocs-client-log:" (buffer-name buffer) "*")
-    (concat "*emdocs-client-log:" buffer "*")))
+  (concat "*emdocs-client-log:" buffer "*"))
 
 (defun emdocs-get-server-process-name ()
   "docstring"
@@ -104,9 +99,7 @@ connected."
 
 (defun emdocs-get-client-process-name (buffer ip)
   "docstring"
-  (if (bufferp buffer)
-      (concat "*emdocs-client:" (buffer-name buffer) ":" ip "*")
-    (concat "*emdocs-client:" buffer "*")))
+  (concat "*emdocs-client:" buffer ":" ip "*"))
 
 (defun emdocs-is-ip-from-client (test-ip client)
   (string-equal test-ip
@@ -286,10 +279,8 @@ connected."
   "docstring"
   (unless (string-equal ip (emdocs-get-internal-ip-address))
     (let ((new-client (make-instance 'emdocs-client
-                                   :attached-buffer (if (bufferp buffer)
-                                                       (buffer-name buffer)
-                                                     buffer)
-                                   :ip ip)))
+                                     :attached-buffer buffer
+                                     :ip ip)))
       (emdocs-set-process new-client
                           (make-network-process
                            :name (emdocs-get-client-process-name buffer ip)
@@ -318,13 +309,15 @@ connected."
   (emdocs-broadcast-message
    (concat
     (json-encode
-     (list :buffer (if (bufferp buffer)
-                       (buffer-name buffer)
-                     buffer)
+     (list :buffer buffer
            :edit_type type
            :point point
            :content content))
     "\n")))
+
+(defun emdocs-update-undo-list (beg end prev-length)
+  "docstring"
+  )
 
 (defun emdocs-after-change-function (beg end prev-length)
   "docstring"
@@ -336,7 +329,8 @@ connected."
             (buffer-substring-no-properties beg end))
            (setq-local
             emdocs-undo-list
-            (cons (list :type "insert" :point beg :end end
+            ;; :start and :end are offsets from the original string
+            (cons (list :type "insert" :point beg :start 0 :end 0
                         :content (buffer-substring-no-properties beg end)
                         :local (not emdocs-is-network-insert))
                   emdocs-undo-list)))
@@ -344,7 +338,9 @@ connected."
            (emdocs-emit-keypress-json
             (buffer-name) "delete" beg prev-length))))
   (unless emdocs-is-network-insert
-    (setq-local emdocs-undo-posn emdocs-undo-list)))
+    (setq-local emdocs-undo-posn emdocs-undo-list))
+  (unless emdocs-is-undo-insert
+    (emdocs-update-undo-list beg end prev-length)))
 
 (defun emdocs-before-change-function (beg end)
   "docstring"
@@ -353,7 +349,7 @@ connected."
              (/= beg end))
     (setq-local
      emdocs-undo-list
-     (cons (list :type "delete" :point beg :end end
+     (cons (list :type "delete" :point beg
                  :content (buffer-substring-no-properties beg end)
                  :local (not emdocs-is-network-insert))
            emdocs-undo-list))))
@@ -361,7 +357,10 @@ connected."
 (defun emdocs-undo ()
   "docstring"
   (interactive)
-  ())
+  (setq-local emdocs-is-undo-insert t)
+  (unwind-protect
+      (throw 'wreckage t)
+    (setq-local emdocs-is-undo-insert nil)))
 
 (defun emdocs-attach-to-buffer (buffer ip)
   "docstring"
