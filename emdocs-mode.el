@@ -35,6 +35,12 @@
 (defvar-local emdocs-after-change-lambda nil
   "docstring")
 
+(defvar-local emdocs-before-change-lambda nil
+  "docstring")
+
+(defvar-local emdocs-undo-list nil
+  "docstring")
+
 ;;; classes
 
 (defclass emdocs-client ()
@@ -320,14 +326,31 @@ connected."
   (with-current-buffer (if (bufferp buffer)
                            (buffer-name buffer)
                          buffer)
-    (if (boundp 'emdocs-is-network-insert)
-        (unless emdocs-is-network-insert
-          (cond ((= prev-length 0)
-                 (emdocs-emit-keypress-json
-                  buffer "insert" beg (buffer-substring beg end)))
-                ((= beg end)
-                 (emdocs-emit-keypress-json
-                  buffer "delete" beg prev-length)))))))
+    (when (= prev-length 0)
+      (setq-local emdocs-undo-list
+                  (cons `(:type ,"insert" :point ,beg
+                          :content ,(buffer-substring-no-properties beg end)
+                          :local ,(not emdocs-is-network-insert))
+                        emdocs-undo-list)))
+    (when (and (boundp 'emdocs-is-network-insert)
+               emdocs-is-network-insert)
+        (cond ((= prev-length 0)
+               (emdocs-emit-keypress-json
+                buffer "insert" beg
+                (buffer-substring-no-properties beg end)))
+              ((= beg end)
+               (emdocs-emit-keypress-json
+                buffer "delete" beg prev-length))))))
+
+(defun emdocs-before-change-function (buffer beg end)
+  "docstring"
+  (with-current-buffer buffer
+    (when (/= beg end)
+      (setq-local emdocs-undo-list
+                  (cons `(:type ,"delete" :point ,beg
+                          :content ,(buffer-substring-no-properties beg end)
+                          :local ,(not emdocs-is-network-insert))
+                        emdocs-undo-list)))))
 
 (defun emdocs-attach-to-buffer (buffer ip)
   "docstring"
@@ -363,9 +386,19 @@ connected."
                               (with-current-buffer buffer
                                 (emdocs-after-change-function
                                  buffer beg end prev-length))))
+                (setq-local emdocs-before-change-lambda
+                            (lambda (beg end)
+                              (with-current-buffer buffer
+                                (emdocs-before-change-function
+                                 buffer beg end))))
                 (setq-local after-change-functions
                             (cons emdocs-after-change-lambda
                                   after-change-functions))
+                (setq-local before-change-functions
+                            (cons emdocs-before-change-lambda
+                                  before-change-functions))
+                (setq-local emdocs-undo-list nil)
+                ;; TODO: add removable lambda as with after-change-functions
                 (add-hook 'kill-buffer-hook
                           (lambda ()
                             (when (string-equal
@@ -420,7 +453,11 @@ connected."
                      *emdocs-incoming-clients*))
     (setq-local after-change-functions
                 (remove emdocs-after-change-lambda after-change-functions))
-    (setq-local emdocs-after-change-lambda nil)))
+    (setq-local emdocs-after-change-lambda nil)
+    (setq-local emdocs-undo-list nil)
+    (setq-local before-change-functions
+                (remove emdocs-before-change-lambda before-change-functions))
+    (setq-local emdocs-before-change-lambda nil)))
 
 (defun emdocs-kill-server ()
   "docstring"
