@@ -317,7 +317,45 @@ connected."
 
 (defun emdocs-update-undo-list (beg end prev-length)
   "docstring"
-  )
+  (loop for edit in emdocs-undo-list
+        do (cond ((string-equal (plist-get edit :type) "insert")
+                  (cond ((= prev-length 0)     ; insertion
+                         (if (<= beg (plist-get edit :point))
+                             (plist-put edit :point
+                                        (+ (plist-get edit :point)
+                                           (- end beg)))
+                           (when (< beg (plist-get edit :end))
+                             (plist-put edit :end
+                                        (+ (plist-get edit :end)
+                                           (- end beg))))))
+                        ((= beg end)           ; deletion
+                         (if (<= beg (plist-get edit :point))
+                             (if (<= end (plist-get edit :point))
+                                 (plist-put edit :point
+                                            (- (plist-get edit :point)
+                                               prev-length))
+                               (plist-put edit :start
+                                          (max (plist-get edit :start))))
+                           (when (< beg (plist-get edit :end))
+                             (plist-put edit :end
+                                        (if (< end (plist-get edit :end))
+                                            )))))))
+                 ((string-equal (plist-get edit :type) "delete")
+                  (cond ((= prev-length 0)     ; insertion
+                         (when (<= beg (plist-get edit :point))
+                           (plist-put edit :point
+                                      (+ (plist-get edit :point)
+                                         (- end beg)))))
+                        ((= beg end)           ; deletion
+                         (when (<= beg (plist-get edit :point))
+                           (plist-put edit :point
+                                      (+ (- (plist-get edit :point)
+                                            prev-length)
+                                         (if (> (+ beg prev-length)
+                                                (plist-get edit :point))
+                                             (- (+ beg prev-length)
+                                                (plist-get edit :point))
+                                           0))))))))))
 
 (defun emdocs-after-change-function (beg end prev-length)
   "docstring"
