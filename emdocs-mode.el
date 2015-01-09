@@ -1,3 +1,4 @@
+
 ;; -*- lexical-binding: t; -*-
 
 ;;; requires
@@ -256,7 +257,8 @@ connected."
                          (insert buffer-contents)
                          (goto-char prev-point))
                      (setq-local emdocs-is-network-insert nil)
-                     (setq-local emdocs-undo-list nil))))))))))
+                     (setq-local emdocs-undo-list nil)
+                     (setq-local emdocs-undo-posn nil))))))))))
 
 (defun emdocs-client-filter (client sock msg)
   "docstring"
@@ -315,47 +317,20 @@ connected."
            :content content))
     "\n")))
 
-(defun emdocs-update-undo-list (beg end prev-length)
+(defun emdocs-release-markers (edit)
   "docstring"
-  (loop for edit in emdocs-undo-list
-        do (cond ((string-equal (plist-get edit :type) "insert")
-                  (cond ((= prev-length 0)     ; insertion
-                         (if (<= beg (plist-get edit :point))
-                             (plist-put edit :point
-                                        (+ (plist-get edit :point)
-                                           (- end beg)))
-                           (when (< beg (plist-get edit :end))
-                             (plist-put edit :end
-                                        (+ (plist-get edit :end)
-                                           (- end beg))))))
-                        ((= beg end)           ; deletion
-                         (if (<= beg (plist-get edit :point))
-                             (if (<= end (plist-get edit :point))
-                                 (plist-put edit :point
-                                            (- (plist-get edit :point)
-                                               prev-length))
-                               (plist-put edit :start
-                                          (max (plist-get edit :start))))
-                           (when (< beg (plist-get edit :end))
-                             (plist-put edit :end
-                                        (if (< end (plist-get edit :end))
-                                            )))))))
-                 ((string-equal (plist-get edit :type) "delete")
-                  (cond ((= prev-length 0)     ; insertion
-                         (when (<= beg (plist-get edit :point))
-                           (plist-put edit :point
-                                      (+ (plist-get edit :point)
-                                         (- end beg)))))
-                        ((= beg end)           ; deletion
-                         (when (<= beg (plist-get edit :point))
-                           (plist-put edit :point
-                                      (+ (- (plist-get edit :point)
-                                            prev-length)
-                                         (if (> (+ beg prev-length)
-                                                (plist-get edit :point))
-                                             (- (+ beg prev-length)
-                                                (plist-get edit :point))
-                                           0))))))))))
+  (set-marker (plist-get edit :start) nil)
+  (set-marker (plist-get edit :end) nil))
+
+(defun emdocs-release-markers-list (edit-list)
+  "docstring"
+  (loop for edit in edit-list
+        do (emdocs-release-markers edit)))
+
+(defun emdocs-explode-undo-list ()
+  (emdocs-release-markers-list emdocs-undo-list)
+  (setq emdocs-undo-list nil)
+  (setq emdocs-undo-posn nil))
 
 (defun emdocs-after-change-function (beg end prev-length)
   "docstring"
@@ -365,39 +340,92 @@ connected."
            (emdocs-emit-keypress-json
             (buffer-name) "insert" beg
             (buffer-substring-no-properties beg end))
-           (setq-local
-            emdocs-undo-list
-            ;; :start and :end are offsets from the original string
-            (cons (list :type "insert" :point beg :start 0 :end 0
-                        :content (buffer-substring-no-properties beg end)
-                        :local (not emdocs-is-network-insert))
-                  emdocs-undo-list)))
+           (unless emdocs-is-undo-insert
+             (let ((start-marker (make-marker))
+                   (end-marker (make-marker)))
+               (set-marker start-marker beg)
+               (set-marker-insertion-type start-marker t)
+               (set-marker end-marker end)
+               (set-marker-insertion-type end-marker t)
+               (setq-local emdocs-undo-list emdocs-undo-posn)
+               (setq-local
+                emdocs-undo-list
+                (cons (list :type "insert" :start start-marker :end end-marker
+                            :content (buffer-substring-no-properties beg end)
+                            :local (not emdocs-is-network-insert))
+                      emdocs-undo-list))
+               (setq-local emdocs-undo-posn emdocs-undo-list))))
           ((= beg end)
            (emdocs-emit-keypress-json
-            (buffer-name) "delete" beg prev-length))))
-  (unless emdocs-is-network-insert
-    (setq-local emdocs-undo-posn emdocs-undo-list))
-  (unless emdocs-is-undo-insert
-    (emdocs-update-undo-list beg end prev-length)))
+            (buffer-name) "delete" beg prev-length)))))
 
 (defun emdocs-before-change-function (beg end)
   "docstring"
   (when (and (boundp 'emdocs-is-network-insert)
              (not emdocs-is-network-insert)
+             (not emdocs-is-undo-insert)
              (/= beg end))
-    (setq-local
-     emdocs-undo-list
-     (cons (list :type "delete" :point beg
-                 :content (buffer-substring-no-properties beg end)
-                 :local (not emdocs-is-network-insert))
-           emdocs-undo-list))))
+    (let ((start-marker (make-marker))
+          (end-marker (make-marker)))
+      (set-marker start-marker beg)
+      (set-marker-insertion-type start-marker t)
+      (set-marker end-marker end)
+      (set-marker-insertion-type end-marker t)
+      (setq-local emdocs-undo-list emdocs-undo-posn)
+      (setq-local
+       emdocs-undo-list
+       (cons (list :type "delete" :start start-marker :end end-marker
+                   :content (buffer-substring-no-properties beg end)
+                   :local (not emdocs-is-network-insert))
+             emdocs-undo-list))
+      (setq-local emdocs-undo-posn emdocs-undo-list))))
 
 (defun emdocs-undo ()
   "docstring"
   (interactive)
   (setq-local emdocs-is-undo-insert t)
   (unwind-protect
-      (throw 'wreckage t)
+      (if (not emdocs-undo-posn)
+          (message "No more undo information available!")
+        (let ((undo-edit (car emdocs-undo-posn)))
+          (cond ((string-equal (plist-get undo-edit :type)
+                               "insert")
+                 (delete-region (plist-get undo-edit :start)
+                                (plist-get undo-edit :end)))
+                ((string-equal (plist-get undo-edit :type)
+                               "delete")
+                 (goto-char (plist-get undo-edit :start))
+                 (insert (plist-get undo-edit :content))
+                 (set-marker (plist-get undo-edit :end)
+                             (+ (plist-get undo-edit :start)
+                                (length (plist-get undo-edit :content))))))))
+    (setq-local emdocs-is-undo-insert nil)
+    (setq-local emdocs-undo-posn (cdr emdocs-undo-posn))))
+
+(defun emdocs-redo ()
+  "docstring"
+  (interactive)
+  (setq-local emdocs-is-undo-insert t)
+  (unwind-protect
+      (let ((emdocs-undo-target
+             (loop with cur-undo-el = emdocs-undo-list
+                   until (or (not cur-undo-el)
+                             (eq (cdr cur-undo-el) emdocs-undo-posn))
+                   do (setq cur-undo-el (cdr cur-undo-el))
+                   finally (return cur-undo-el))))
+        (if (not emdocs-undo-target)
+            (message "No more redo information available!")
+          (let ((undo-edit (car emdocs-undo-target)))
+            (cond ((string-equal (plist-get undo-edit :type) "insert")
+                   (goto-char (plist-get undo-edit :start))
+                   (insert (plist-get undo-edit :content))
+                   (set-marker (plist-get undo-edit :end)
+                               (+ (plist-get undo-edit :start)
+                                  (length (plist-get undo-edit :content)))))
+                  ((string-equal (plist-get undo-edit :type) "delete")
+                   (delete-region (plist-get undo-edit :start)
+                                  (plist-get undo-edit :end))))
+            (setq-local emdocs-undo-posn emdocs-undo-target))))
     (setq-local emdocs-is-undo-insert nil)))
 
 (defun emdocs-attach-to-buffer (buffer ip)
@@ -517,6 +545,8 @@ connected."
   :lighter " MDox"
   :keymap (let ((map (make-sparse-keymap)))
             ;; (define-key map (kbd "C-c C-c") #'emdocs-mode)
+            (define-key map (kbd "C-c z") #'emdocs-undo)
+            (define-key map (kbd "C-c r") #'emdocs-redo)
             map)
   (if emdocs-mode
       (emdocs-connect (buffer-name))
