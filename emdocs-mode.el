@@ -2,6 +2,8 @@
 
 ;;; requires
 
+;; TODO: try using with-silent-modifications to avoid undo changes!?
+
 (eval-when-compile
   (require 'cl)
   (require 'json)
