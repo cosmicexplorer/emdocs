@@ -2,7 +2,13 @@ emdocs
 ===========
 
 A minor mode for emacs to create buffers readily editable by multiple users over
-the internet. (Pronounced "M-dox.") Currently just working on pair programming.
+the internet. (Pronounced "M-dox.")
+
+# NO LONGER ACTIVE
+
+While this was fun to work on, I don't really see the use case for it and it doesn't really excite me, so I'm abandoning this for now. Sorry!
+
+# INTRO
 
 Currently functional, need to iron out a few bugs before putting it on MELPA.
 
