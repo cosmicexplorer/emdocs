@@ -57,60 +57,109 @@ pub mod protocol {
 pub mod connections {
   use super::*;
 
+  use futures::future;
   use indexmap::{IndexMap, IndexSet};
+  use parking_lot::RwLock;
   use reqwest;
+  use serde::ser::Serialize;
 
-  #[derive(Debug, Clone, Default)]
+  use std::sync::Arc;
+
+  #[derive(Debug, Clone)]
   pub struct Client {
+    target: protocol::RemoteClient,
     client: reqwest::Client,
   }
 
   impl Client {
-    pub fn send<T>(&mut self, _x: T) {
-      todo!("broadcast x!");
+    pub fn new(target: protocol::RemoteClient, client: reqwest::Client) -> Self {
+      Self { target, client }
+    }
+
+    pub async fn send<T: Serialize>(&self, x: T) -> Result<(), reqwest::Error> {
+      self
+        .client
+        .get(&self.target.ip_address)
+        .json(&x)
+        .send()
+        .await?;
+      Ok(())
     }
   }
 
-  #[derive(Debug, Clone, Default)]
+  #[derive(Debug, Clone)]
   pub struct BufferTopic {
-    pub clients: IndexSet<protocol::RemoteClient>,
+    pub clients: Arc<RwLock<IndexSet<protocol::RemoteClient>>>,
   }
 
   impl BufferTopic {
-    pub fn add(&mut self, remote: protocol::RemoteClient) { self.clients.insert(remote); }
+    pub fn new() -> Self {
+      Self {
+        clients: Arc::new(RwLock::new(IndexSet::new())),
+      }
+    }
+
+    pub fn add(&self, remote: protocol::RemoteClient) { self.clients.write().insert(remote); }
   }
 
-  #[derive(Debug, Clone, Default)]
+  #[derive(Debug, Clone)]
   pub struct Connections {
-    associations: IndexMap<BufferId, BufferTopic>,
-    remote_clients: IndexMap<protocol::RemoteClient, Client>,
+    associations: Arc<RwLock<IndexMap<BufferId, BufferTopic>>>,
+    remote_clients: Arc<RwLock<IndexMap<protocol::RemoteClient, Client>>>,
   }
 
   impl Connections {
-    pub fn topic_for_buffer(&mut self, buffer_id: BufferId) -> &mut BufferTopic {
-      self
-        .associations
-        .entry(buffer_id)
-        .or_insert_with(BufferTopic::default)
+    pub fn new() -> Self {
+      Self {
+        associations: Arc::new(RwLock::new(IndexMap::new())),
+        remote_clients: Arc::new(RwLock::new(IndexMap::new())),
+      }
     }
 
-    pub fn record_buffer_client(&mut self, association: protocol::BufferAssociation) {
+    pub fn topic_for_buffer(&self, buffer_id: BufferId) -> BufferTopic {
+      self
+        .associations
+        .write()
+        .entry(buffer_id)
+        .or_insert_with(BufferTopic::new)
+        .clone()
+    }
+
+    pub fn record_buffer_client(&self, association: protocol::BufferAssociation) {
       let protocol::BufferAssociation { buffer_id, remote } = association;
       self.topic_for_buffer(buffer_id).add(remote);
     }
 
-    pub fn get_client(&mut self, remote: protocol::RemoteClient) -> &mut Client {
+    pub fn get_client(&self, remote: protocol::RemoteClient) -> Client {
       self
         .remote_clients
-        .entry(remote)
-        .or_insert_with(Client::default)
+        .write()
+        .entry(remote.clone())
+        .or_insert_with(|| Client::new(remote, reqwest::Client::new()))
+        .clone()
     }
 
-    pub fn broadcast<T>(&mut self, buffer_id: BufferId, x: &T) {
-      for remote in self.topic_for_buffer(buffer_id).clients.clone().into_iter() {
+    pub async fn broadcast<T: Serialize+Clone>(
+      &self,
+      buffer_id: BufferId,
+      x: T,
+    ) -> Result<(), reqwest::Error> {
+      let clients: Vec<_> = self
+        .topic_for_buffer(buffer_id)
+        .clients
+        .read()
+        .iter()
+        .cloned()
+        .collect();
+      future::join_all(clients.into_iter().map(|remote| async {
         let client = self.get_client(remote);
-        client.send(x);
-      }
+        client.send(x.clone()).await?;
+        Ok(())
+      }))
+      .await
+      .into_iter()
+      .collect::<Result<Vec<()>, reqwest::Error>>()?;
+      Ok(())
     }
   }
 }

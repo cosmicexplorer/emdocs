@@ -50,13 +50,13 @@ enum Action {
 /* echo '{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve | jq */
 /* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}' | cargo run -- serve | jq */
 /* -- */
-/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}\n{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
-fn main() {
+/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
+#[tokio::main]
+async fn main() -> Result<(), reqwest::Error> {
   let Opts { action } = Opts::parse();
-  let mut connections = connections::Connections::default();
+  let connections = connections::Connections::new();
   match action {
     Action::Serve => {
-      let mut buf = String::new();
       for line in io::stdin().lock().lines() {
         let line = line.expect("io error reading stdin line");
         let ide_msg: protocol::IDEMessage =
@@ -68,8 +68,7 @@ fn main() {
           },
           protocol::IDEMessage::doc(msg) => match msg {
             Message::transform(Transform { source, r#type }) => {
-              let topic = connections.topic_for_buffer(source.clone());
-              connections.broadcast(source, &r#type);
+              connections.broadcast(source, &r#type).await?;
             },
           },
         }
@@ -81,4 +80,5 @@ fn main() {
       }
     },
   }
+  Ok(())
 }
