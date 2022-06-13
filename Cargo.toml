@@ -14,6 +14,7 @@ edition                 = "2021"
 clap = { version = "3", features = ["derive"] }
 emdocs-protocol = { path = "protocol" }
 indexmap = "1.8.1"
+reqwest = "0.11.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -33,7 +33,7 @@ use emdocs_protocol::messages::{Message, Transform};
 use clap::{Parser, Subcommand};
 use serde_json;
 
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -49,19 +49,18 @@ enum Action {
 
 /* echo '{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve | jq */
 /* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}' | cargo run -- serve | jq */
+/* -- */
+/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}\n{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
 fn main() {
   let Opts { action } = Opts::parse();
   let mut connections = connections::Connections::default();
   match action {
     Action::Serve => {
       let mut buf = String::new();
-      while io::stdin()
-        .read_line(&mut buf)
-        .expect("io read should succeed")
-        != 0
-      {
+      for line in io::stdin().lock().lines() {
+        let line = line.expect("io error reading stdin line");
         let ide_msg: protocol::IDEMessage =
-          serde_json::from_str(&buf).expect("IDE message decoding failed");
+          serde_json::from_str(&line).expect("IDE message decoding failed");
         dbg!(&ide_msg);
         match ide_msg {
           protocol::IDEMessage::link(association) => {
@@ -69,8 +68,8 @@ fn main() {
           },
           protocol::IDEMessage::doc(msg) => match msg {
             Message::transform(Transform { source, r#type }) => {
-              let topic = connections.clients_for_buffer(source);
-              topic.broadcast(r#type);
+              let topic = connections.topic_for_buffer(source.clone());
+              connections.broadcast(source, &r#type);
             },
           },
         }

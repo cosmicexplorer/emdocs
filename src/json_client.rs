@@ -58,6 +58,18 @@ pub mod connections {
   use super::*;
 
   use indexmap::{IndexMap, IndexSet};
+  use reqwest;
+
+  #[derive(Debug, Clone, Default)]
+  pub struct Client {
+    client: reqwest::Client,
+  }
+
+  impl Client {
+    pub fn send<T>(&mut self, _x: T) {
+      todo!("broadcast x!");
+    }
+  }
 
   #[derive(Debug, Clone, Default)]
   pub struct BufferTopic {
@@ -66,20 +78,16 @@ pub mod connections {
 
   impl BufferTopic {
     pub fn add(&mut self, remote: protocol::RemoteClient) { self.clients.insert(remote); }
-
-    pub fn broadcast<T>(&mut self, _x: T) {
-      todo!("broadcast x!");
-    }
   }
 
   #[derive(Debug, Clone, Default)]
   pub struct Connections {
     associations: IndexMap<BufferId, BufferTopic>,
-
+    remote_clients: IndexMap<protocol::RemoteClient, Client>,
   }
 
   impl Connections {
-    pub fn clients_for_buffer(&mut self, buffer_id: BufferId) -> &mut BufferTopic {
+    pub fn topic_for_buffer(&mut self, buffer_id: BufferId) -> &mut BufferTopic {
       self
         .associations
         .entry(buffer_id)
@@ -88,7 +96,21 @@ pub mod connections {
 
     pub fn record_buffer_client(&mut self, association: protocol::BufferAssociation) {
       let protocol::BufferAssociation { buffer_id, remote } = association;
-      self.clients_for_buffer(buffer_id).add(remote);
+      self.topic_for_buffer(buffer_id).add(remote);
+    }
+
+    pub fn get_client(&mut self, remote: protocol::RemoteClient) -> &mut Client {
+      self
+        .remote_clients
+        .entry(remote)
+        .or_insert_with(Client::default)
+    }
+
+    pub fn broadcast<T>(&mut self, buffer_id: BufferId, x: &T) {
+      for remote in self.topic_for_buffer(buffer_id).clients.clone().into_iter() {
+        let client = self.get_client(remote);
+        client.send(x);
+      }
     }
   }
 }
