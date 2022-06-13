@@ -15,6 +15,7 @@ displaydoc              = { git = "https://github.com/yaahc/displaydoc", rev = "
 prost = "0.10"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1.0.30"
+tonic = "0.7"
 uuid = { version = "1.1.2", features = ["v4"] }
 
 [dependencies.serde-mux]
@@ -27,6 +28,7 @@ features = ["protobuf"]
 # <https://github.com/cosmicexplorer/learning-progress-bar/blob/1ada17c77cf14a948430161f5c648ae3375aa4ba/terminal/thrift/streaming_interface.rs>
 # for example.
 prost-build = "0.10"
+tonic-build = "0.7"
 
 [dev-dependencies]
 proptest = "1"

@@ -33,7 +33,7 @@ message BufferAssociation {
 
 message IDEMessage {
   oneof type {
-    Operation doc = 1;
+    Operation op = 1;
     BufferAssociation link = 2;
   }
 }

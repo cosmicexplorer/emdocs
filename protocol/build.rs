@@ -26,6 +26,7 @@ fn main() {
   ];
   for proto in &protos {
     println!("cargo:rerun-if-changed={}", proto);
+    tonic_build::compile_protos(&proto).expect("protobufs were somehow invalid for tonic?");
   }
   prost_build::compile_protos(&protos, &["src"]).expect("protobufs were somehow invalid?");
 }

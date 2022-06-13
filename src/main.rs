@@ -26,9 +26,9 @@
 #![deny(clippy::all)]
 
 mod json_client;
-use json_client::{connections, protocol};
+use json_client::connections;
 
-use emdocs_protocol::messages::{Message, Transform};
+use emdocs_protocol::transforms::Transform;
 
 use clap::{Parser, Subcommand};
 use serde_json;
@@ -59,21 +59,22 @@ async fn main() -> Result<(), reqwest::Error> {
     Action::Serve => {
       for line in io::stdin().lock().lines() {
         let line = line.expect("io error reading stdin line");
-        let ide_msg: protocol::IDEMessage =
+        let ide_msg: emdocs_protocol::messages::IDEMessage =
           serde_json::from_str(&line).expect("IDE message decoding failed");
         dbg!(&ide_msg);
         match ide_msg {
-          protocol::IDEMessage::link(association) => {
+          emdocs_protocol::messages::IDEMessage::link(association) => {
             connections.record_buffer_client(association);
           },
-          protocol::IDEMessage::doc(msg) => match msg {
-            Message::transform(Transform { source, r#type }) => {
-              connections.broadcast(source, &r#type).await?;
-            },
+          emdocs_protocol::messages::IDEMessage::op(emdocs_protocol::messages::Operation {
+            source,
+            transform: Transform { r#type },
+          }) => {
+            connections.broadcast(source, &r#type).await?;
           },
         }
-        let client_msg: Vec<u8> =
-          serde_json::to_vec(&protocol::ClientMessage::ok).expect("client message encoding failed");
+        let client_msg: Vec<u8> = serde_json::to_vec(&emdocs_protocol::messages::ClientMessage::ok)
+          .expect("client message encoding failed");
         io::stdout()
           .write(&client_msg)
           .expect("io write should succeed");

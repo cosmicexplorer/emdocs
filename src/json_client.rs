@@ -20,39 +20,7 @@
 
 //! The JSON interface to the emdocs p2p client.
 
-use emdocs_protocol::{buffers::BufferId, messages::Message};
-
-pub mod protocol {
-  use super::*;
-
-  use serde::{Deserialize, Serialize};
-
-  /// The JSON interface from IDEs to this executable.
-  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-  #[allow(non_camel_case_types)]
-  pub enum IDEMessage {
-    doc(Message),
-    link(BufferAssociation),
-  }
-
-  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-  pub struct RemoteClient {
-    pub ip_address: String,
-  }
-
-  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-  pub struct BufferAssociation {
-    pub buffer_id: BufferId,
-    pub remote: RemoteClient,
-  }
-
-  /// The JSON interface from this executable to IDEs.
-  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-  #[allow(non_camel_case_types)]
-  pub enum ClientMessage {
-    ok,
-  }
-}
+use emdocs_protocol::{buffers::BufferId, messages};
 
 pub mod connections {
   use super::*;
@@ -67,12 +35,12 @@ pub mod connections {
 
   #[derive(Debug, Clone)]
   pub struct Client {
-    target: protocol::RemoteClient,
+    target: messages::RemoteClient,
     client: reqwest::Client,
   }
 
   impl Client {
-    pub fn new(target: protocol::RemoteClient, client: reqwest::Client) -> Self {
+    pub fn new(target: messages::RemoteClient, client: reqwest::Client) -> Self {
       Self { target, client }
     }
 
@@ -89,7 +57,7 @@ pub mod connections {
 
   #[derive(Debug, Clone)]
   pub struct BufferTopic {
-    pub clients: Arc<RwLock<IndexSet<protocol::RemoteClient>>>,
+    pub clients: Arc<RwLock<IndexSet<messages::RemoteClient>>>,
   }
 
   impl BufferTopic {
@@ -99,13 +67,13 @@ pub mod connections {
       }
     }
 
-    pub fn add(&self, remote: protocol::RemoteClient) { self.clients.write().insert(remote); }
+    pub fn add(&self, remote: messages::RemoteClient) { self.clients.write().insert(remote); }
   }
 
   #[derive(Debug, Clone)]
   pub struct Connections {
     associations: Arc<RwLock<IndexMap<BufferId, BufferTopic>>>,
-    remote_clients: Arc<RwLock<IndexMap<protocol::RemoteClient, Client>>>,
+    remote_clients: Arc<RwLock<IndexMap<messages::RemoteClient, Client>>>,
   }
 
   impl Connections {
@@ -125,12 +93,12 @@ pub mod connections {
         .clone()
     }
 
-    pub fn record_buffer_client(&self, association: protocol::BufferAssociation) {
-      let protocol::BufferAssociation { buffer_id, remote } = association;
+    pub fn record_buffer_client(&self, association: messages::BufferAssociation) {
+      let messages::BufferAssociation { buffer_id, remote } = association;
       self.topic_for_buffer(buffer_id).add(remote);
     }
 
-    pub fn get_client(&self, remote: protocol::RemoteClient) -> Client {
+    pub fn get_client(&self, remote: messages::RemoteClient) -> Client {
       self
         .remote_clients
         .write()
