@@ -19,6 +19,20 @@
  */
 
 //! Buffer identity and metadata.
+//!
+//!```
+//! # fn main() -> Result<(), emdocs_protocol::Error> {
+//! use serde_mux::{traits::*, Protobuf};
+//! use emdocs_protocol::buffers::*;
+//!
+//! let buf = BufferId::default();
+//! let buf_proto = Protobuf::<BufferId, proto::BufferId>::new(buf.clone());
+//! let bytes = buf_proto.serialize();
+//! let buf_serde = Protobuf::<BufferId, proto::BufferId>::deserialize(&bytes)?;
+//! assert!(buf == buf_serde);
+//! # Ok(())
+//! # }
+//!```
 
 /// [`prost`] structs for serializing transforms.
 pub mod proto {
@@ -33,21 +47,6 @@ pub mod proto {
 use uuid::Uuid;
 
 /// A serializable identifier for a buffer sharable across time and space.
-///
-/// Validate that it can be round-tripped through protobuf:
-///```
-/// # fn main() -> Result<(), emdocs_protocol::Error> {
-/// use serde_mux::{traits::*, Protobuf};
-/// use emdocs_protocol::buffers::*;
-///
-/// let buf = BufferId::default();
-/// let buf_proto = Protobuf::<BufferId, proto::BufferId>::new(buf.clone());
-/// let bytes = buf_proto.serialize();
-/// let buf_serde = Protobuf::<BufferId, proto::BufferId>::deserialize(&bytes)?;
-/// assert!(buf == buf_serde);
-/// # Ok(())
-/// # }
-///```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BufferId {
   pub uuid: Uuid,

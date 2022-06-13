@@ -19,6 +19,30 @@
  */
 
 //! Messages sent between clients.
+//!
+//!```
+//! # fn main() -> Result<(), emdocs_protocol::Error> {
+//! use serde_mux::{traits::*, Protobuf};
+//! use emdocs_protocol::{
+//!   buffers::BufferId,
+//!   messages::*,
+//!   transforms::{Edit, EditPayload, Insert, Point},
+//! };
+//!
+//! let insert = Insert { contents: "hey".to_string() };
+//! let edit = Edit { point: Point::default(), payload: EditPayload::Insert(insert) };
+//! let transform = Transform {
+//!   source: BufferId::default(),
+//!   r#type: TransformType::Edit(edit),
+//! };
+//! let msg = Message::Transform(transform);
+//! let msg_proto = Protobuf::<Message, proto::Message>::new(msg.clone());
+//! let buf = msg_proto.serialize();
+//! let msg_serde = Protobuf::<Message, proto::Message>::deserialize(&buf)?;
+//! assert!(msg == msg_serde);
+//! # Ok(())
+//! # }
+//!```
 
 /// [`prost`] structs for serializing messages.
 pub mod proto {
@@ -45,31 +69,6 @@ pub struct Transform {
 }
 
 /// The interface all clients need to implement!
-///
-/// Validate that it can be round-tripped through protobuf:
-///```
-/// # fn main() -> Result<(), emdocs_protocol::Error> {
-/// use serde_mux::{traits::*, Protobuf};
-/// use emdocs_protocol::{
-///   buffers::BufferId,
-///   messages::*,
-///   transforms::{Edit, EditPayload, Insert, Point},
-/// };
-///
-/// let insert = Insert { contents: "hey".to_string() };
-/// let edit = Edit { point: Point::default(), payload: EditPayload::Insert(insert) };
-/// let transform = Transform {
-///   source: BufferId::default(),
-///   r#type: TransformType::Edit(edit),
-/// };
-/// let msg = Message::Transform(transform);
-/// let msg_proto = Protobuf::<Message, proto::Message>::new(msg.clone());
-/// let buf = msg_proto.serialize();
-/// let msg_serde = Protobuf::<Message, proto::Message>::deserialize(&buf)?;
-/// assert!(msg == msg_serde);
-/// # Ok(())
-/// # }
-///```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Message {
   Transform(Transform),

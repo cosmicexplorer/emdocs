@@ -19,6 +19,21 @@
  */
 
 //! Buffer transform messages.
+//!
+//!```
+//! # fn main() -> Result<(), emdocs_protocol::Error> {
+//! use serde_mux::{traits::*, Protobuf};
+//! use emdocs_protocol::transforms::*;
+//!
+//! let insert = Insert { contents: "hey".to_string() };
+//! let edit = Edit { point: Point::default(), payload: EditPayload::Insert(insert) };
+//! let edit_proto = Protobuf::<Edit, proto::Edit>::new(edit.clone());
+//! let buf = edit_proto.serialize();
+//! let edit_serde = Protobuf::<Edit, proto::Edit>::deserialize(&buf)?;
+//! assert!(edit == edit_serde);
+//! # Ok(())
+//! # }
+//!```
 
 /// [`prost`] structs for serializing transforms.
 pub mod proto {
@@ -63,22 +78,6 @@ pub enum EditPayload {
 }
 
 /// An operational transform editing a buffer.
-///
-/// Validate that it can be round-tripped through protobuf:
-///```
-/// # fn main() -> Result<(), emdocs_protocol::Error> {
-/// use serde_mux::{traits::*, Protobuf};
-/// use emdocs_protocol::transforms::*;
-///
-/// let insert = Insert { contents: "hey".to_string() };
-/// let edit = Edit { point: Point::default(), payload: EditPayload::Insert(insert) };
-/// let edit_proto = Protobuf::<Edit, proto::Edit>::new(edit.clone());
-/// let buf = edit_proto.serialize();
-/// let edit_serde = Protobuf::<Edit, proto::Edit>::deserialize(&buf)?;
-/// assert!(edit == edit_serde);
-/// # Ok(())
-/// # }
-///```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Edit {
   pub point: Point,
