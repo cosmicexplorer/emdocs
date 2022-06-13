@@ -8,7 +8,6 @@ package emdocs.proto.messages;
 import "buffers.proto";
 import "transforms.proto";
 
-/* This is the interface clients need to implement! */
 message Operation {
   /* The buffer to transform. */
   optional emdocs.proto.buffers.BufferId source = 1;

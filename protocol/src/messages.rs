@@ -86,8 +86,32 @@ pub struct BufferAssociation {
 /// The JSON interface from this executable to IDEs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
-pub enum ClientMessage {
-  ok,
+pub struct ClientMessage;
+
+#[derive(Debug, Default)]
+pub struct OperationService {}
+
+#[tonic::async_trait]
+impl proto::operation_service_server::OperationService for OperationService {
+  async fn process_operation(
+    &self,
+    request: tonic::Request<proto::Operation>,
+  ) -> Result<tonic::Response<proto::OperationResult>, tonic::Status> {
+    todo!("idk!")
+  }
+}
+
+#[derive(Debug, Default)]
+pub struct IDEService {}
+
+#[tonic::async_trait]
+impl proto::ide_service_server::IdeService for IDEService {
+  async fn process_ide_message(
+    &self,
+    _request: tonic::Request<proto::IdeMessage>,
+  ) -> Result<tonic::Response<proto::ClientMessage>, tonic::Status> {
+    Ok(tonic::Response::new(ClientMessage.into()))
+  }
 }
 
 #[cfg(test)]
@@ -308,6 +332,24 @@ mod serde_impl {
           prop_assert_eq!(ide_msg, resurrected);
         }
       }
+    }
+  }
+
+  mod client_message {
+    use super::*;
+
+    impl serde_mux::Schema for proto::ClientMessage {
+      type Source = ClientMessage;
+    }
+
+    impl TryFrom<proto::ClientMessage> for ClientMessage {
+      type Error = Error;
+
+      fn try_from(_proto_message: proto::ClientMessage) -> Result<Self, Error> { Ok(ClientMessage) }
+    }
+
+    impl From<ClientMessage> for proto::ClientMessage {
+      fn from(_value: ClientMessage) -> Self { Self {} }
     }
   }
 }

@@ -20,6 +20,7 @@ reqwest = { version = "0.11.10", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.19.2", features = ["full"] }
+tonic = { version = "0.7.2", features = ["prost"] }
 
 [dev-dependencies]
 proptest = "1"
