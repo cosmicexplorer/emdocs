@@ -26,3 +26,7 @@ features = ["protobuf"]
 # <https://github.com/cosmicexplorer/learning-progress-bar/blob/1ada17c77cf14a948430161f5c648ae3375aa4ba/terminal/thrift/streaming_interface.rs>
 # for example.
 prost-build = "0.10"
+
+[dev-dependencies]
+proptest = "1"
+# tempdir = "0.3"

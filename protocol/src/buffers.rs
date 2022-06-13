@@ -48,7 +48,7 @@ use uuid::Uuid;
 /// # Ok(())
 /// # }
 ///```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BufferId {
   pub uuid: Uuid,
 }
@@ -61,7 +61,24 @@ impl Default for BufferId {
   }
 }
 
+#[cfg(test)]
+pub mod proptest_strategies {
+  use super::*;
+
+  use proptest::{prelude::*, strategy::Strategy};
+
+  pub fn new_uuid() -> impl Strategy<Value=Uuid> { Just(Uuid::new_v4()) }
+
+  prop_compose! {
+    pub fn new_buffer_id()(uuid in new_uuid()) -> BufferId {
+      BufferId { uuid }
+    }
+  }
+}
+
 mod serde_impl {
+  #[cfg(test)]
+  use super::proptest_strategies::*;
   use super::*;
   use crate::error::Error;
 
@@ -102,6 +119,26 @@ mod serde_impl {
         let BufferId { uuid } = value;
         proto::BufferId {
           uuid: Some(uuid.as_bytes().to_vec()),
+        }
+      }
+    }
+
+    #[cfg(test)]
+    mod test {
+      use super::*;
+
+      use serde_mux::traits::*;
+
+      use proptest::prelude::*;
+
+      proptest! {
+        #[test]
+        fn test_serde_buffer_id(buffer_id in new_buffer_id()) {
+          let protobuf = serde_mux::Protobuf::<BufferId, proto::BufferId>::new(buffer_id.clone());
+          let buf: Box<[u8]> = protobuf.serialize();
+          let resurrected =
+            serde_mux::Protobuf::<BufferId, proto::BufferId>::deserialize(&buf).unwrap();
+          prop_assert_eq!(buffer_id, resurrected);
         }
       }
     }

@@ -75,7 +75,29 @@ pub enum Message {
   Transform(Transform),
 }
 
+#[cfg(test)]
+pub mod proptest_strategies {
+  use super::*;
+  use crate::{buffers::proptest_strategies::*, transforms::proptest_strategies::*};
+
+  use proptest::{prelude::*, strategy::Strategy};
+
+  pub fn new_transform_type() -> impl Strategy<Value=TransformType> {
+    prop_oneof![new_edit().prop_map(TransformType::Edit),]
+  }
+  prop_compose! {
+    pub fn new_transform()(source in new_buffer_id(), r#type in new_transform_type()) -> Transform {
+      Transform { source, r#type }
+    }
+  }
+  pub fn new_message() -> impl Strategy<Value=Message> {
+    prop_oneof![new_transform().prop_map(Message::Transform),]
+  }
+}
+
 mod serde_impl {
+  #[cfg(test)]
+  use super::proptest_strategies::*;
   use super::*;
   use crate::error::Error;
 
@@ -161,6 +183,26 @@ mod serde_impl {
         };
         Self {
           r#type: Some(r#type),
+        }
+      }
+    }
+
+    #[cfg(test)]
+    mod test {
+      use super::*;
+
+      use serde_mux::traits::*;
+
+      use proptest::prelude::*;
+
+      proptest! {
+        #[test]
+        fn test_serde_message(message in new_message()) {
+          let protobuf = serde_mux::Protobuf::<Message, proto::Message>::new(message.clone());
+          let buf: Box<[u8]> = protobuf.serialize();
+          let resurrected =
+            serde_mux::Protobuf::<Message, proto::Message>::deserialize(&buf).unwrap();
+          prop_assert_eq!(message, resurrected);
         }
       }
     }

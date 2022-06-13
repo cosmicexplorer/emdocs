@@ -85,7 +85,43 @@ pub struct Edit {
   pub payload: EditPayload,
 }
 
+#[cfg(test)]
+pub mod proptest_strategies {
+  use super::*;
+
+  use proptest::{prelude::*, strategy::Strategy};
+
+  prop_compose! {
+    pub fn new_insert()(contents in any::<String>()) -> Insert {
+      Insert { contents }
+    }
+  }
+  prop_compose! {
+    pub fn new_delete()(distance in any::<u32>()) -> Delete {
+      Delete { distance }
+    }
+  }
+  prop_compose! {
+    pub fn new_point()(code_point_index in any::<u32>()) -> Point {
+      Point { code_point_index }
+    }
+  }
+  pub fn new_edit_payload() -> impl Strategy<Value=EditPayload> {
+    prop_oneof![
+      new_insert().prop_map(EditPayload::Insert),
+      new_delete().prop_map(EditPayload::Delete),
+    ]
+  }
+  prop_compose! {
+    pub fn new_edit()(point in new_point(), payload in new_edit_payload()) -> Edit {
+      Edit { point, payload }
+    }
+  }
+}
+
 mod serde_impl {
+  #[cfg(test)]
+  use super::proptest_strategies::*;
   use super::*;
   use crate::error::Error;
 
@@ -233,6 +269,26 @@ mod serde_impl {
         Self {
           point: Some(point.into()),
           payload: Some(payload),
+        }
+      }
+    }
+
+    #[cfg(test)]
+    mod test {
+      use super::*;
+
+      use serde_mux::traits::*;
+
+      use proptest::prelude::*;
+
+      proptest! {
+        #[test]
+        fn test_serde_edit(edit in new_edit()) {
+          let protobuf = serde_mux::Protobuf::<Edit, proto::Edit>::new(edit.clone());
+          let buf: Box<[u8]> = protobuf.serialize();
+          let resurrected =
+            serde_mux::Protobuf::<Edit, proto::Edit>::deserialize(&buf).unwrap();
+          prop_assert_eq!(edit, resurrected);
         }
       }
     }
