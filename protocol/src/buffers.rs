@@ -88,7 +88,12 @@ mod serde_impl {
   mod buffer_id {
     use super::*;
 
-    use serde::ser::{Serialize, SerializeStruct, Serializer};
+    use serde::{
+      de::{Deserialize, Deserializer, MapAccess, Visitor},
+      ser::{Serialize, SerializeStruct, Serializer},
+    };
+
+    use std::fmt;
 
     impl serde_mux::Schema for proto::BufferId {
       type Source = BufferId;
@@ -130,6 +135,32 @@ mod serde_impl {
         let mut buffer_id = serializer.serialize_struct("BufferId", 1)?;
         buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
         buffer_id.end()
+      }
+    }
+
+    struct BufferIdVisitor;
+
+    impl<'de> Visitor<'de> for BufferIdVisitor {
+      type Value = BufferId;
+
+      fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "A buffer id")
+      }
+
+      fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+      where A: MapAccess<'de> {
+        let (k, v): (String, Vec<u8>) = map.next_entry()?.expect("uuid key must exist");
+        assert_eq!(k, "uuid");
+        Ok(BufferId {
+          uuid: Uuid::from_bytes(v.try_into().expect("uuid bytes wrong length")),
+        })
+      }
+    }
+
+    impl<'de> Deserialize<'de> for BufferId {
+      fn deserialize<D>(deserializer: D) -> Result<BufferId, D::Error>
+      where D: Deserializer<'de> {
+        deserializer.deserialize_struct("BufferId", &["uuid"], BufferIdVisitor)
       }
     }
 

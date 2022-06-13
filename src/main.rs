@@ -33,6 +33,8 @@ use emdocs_protocol::buffers::BufferId;
 use clap::{Parser, Subcommand};
 use serde_json;
 
+use std::io;
+
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Opts {
@@ -43,6 +45,7 @@ struct Opts {
 #[derive(Debug, Subcommand)]
 enum Action {
   NewBuffer,
+  ReadBuffer,
 }
 
 fn main() {
@@ -52,6 +55,11 @@ fn main() {
       let buf = BufferId::default();
       let j = serde_json::to_string(&buf).expect("expected json encoding to succeed");
       println!("{}", j);
+    },
+    Action::ReadBuffer => {
+      let buf: BufferId =
+        serde_json::from_reader(io::stdin()).expect("expected json decoding to succeed");
+      println!("{:?}", buf);
     },
   }
 }
