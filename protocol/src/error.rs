@@ -33,13 +33,9 @@ pub enum Error {
 }
 
 impl From<prost::DecodeError> for Error {
-  fn from(value: prost::DecodeError) -> Self {
-    Self::Proto(value.into())
-  }
+  fn from(value: prost::DecodeError) -> Self { Self::Proto(value.into()) }
 }
 
 impl From<prost::EncodeError> for Error {
-  fn from(value: prost::EncodeError) -> Self {
-    Self::Proto(value.into())
-  }
+  fn from(value: prost::EncodeError) -> Self { Self::Proto(value.into()) }
 }

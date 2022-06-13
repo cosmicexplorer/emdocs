@@ -26,6 +26,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
+pub mod buffers;
 mod error;
 pub mod transforms;
 

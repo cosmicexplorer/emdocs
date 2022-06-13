@@ -19,7 +19,7 @@
  */
 
 fn main() {
-  let protos = ["src/transforms.proto"];
+  let protos = ["src/buffers.proto", "src/transforms.proto"];
   for proto in &protos {
     println!("cargo:rerun-if-changed={}", proto);
   }
