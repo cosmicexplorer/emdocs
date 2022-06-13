@@ -40,7 +40,7 @@ pub mod proto {
   pub use proto::*;
   mod proto {
     #![allow(missing_docs)]
-    include!(concat!(env!("OUT_DIR"), "/emdocs.proto.buffers.rs"));
+    tonic::include_proto!("emdocs.proto.buffers");
   }
 }
 
