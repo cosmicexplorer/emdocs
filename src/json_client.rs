@@ -22,30 +22,73 @@
 
 use emdocs_protocol::{buffers::BufferId, messages::Message};
 
-use serde::{Deserialize, Serialize};
+pub mod protocol {
+  use super::*;
 
-/// The JSON interface from IDEs to this executable.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
-pub enum IDEMessage {
-  doc(Message),
-  link(BufferAssociation),
+  use serde::{Deserialize, Serialize};
+
+  /// The JSON interface from IDEs to this executable.
+  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+  #[allow(non_camel_case_types)]
+  pub enum IDEMessage {
+    doc(Message),
+    link(BufferAssociation),
+  }
+
+  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+  pub struct RemoteClient {
+    pub ip_address: String,
+  }
+
+  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+  pub struct BufferAssociation {
+    pub buffer_id: BufferId,
+    pub remote: RemoteClient,
+  }
+
+  /// The JSON interface from this executable to IDEs.
+  #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+  #[allow(non_camel_case_types)]
+  pub enum ClientMessage {
+    ok,
+  }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct RemoteClient {
-  pub ip_address: String,
-}
+pub mod connections {
+  use super::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct BufferAssociation {
-  pub buffer_id: BufferId,
-  pub remote: RemoteClient,
-}
+  use indexmap::{IndexMap, IndexSet};
 
-/// The JSON interface from this executable to IDEs.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[allow(non_camel_case_types)]
-pub enum ClientMessage {
-  ok,
+  #[derive(Debug, Clone, Default)]
+  pub struct BufferTopic {
+    pub clients: IndexSet<protocol::RemoteClient>,
+  }
+
+  impl BufferTopic {
+    pub fn add(&mut self, remote: protocol::RemoteClient) { self.clients.insert(remote); }
+
+    pub fn broadcast<T>(&mut self, _x: T) {
+      todo!("broadcast x!");
+    }
+  }
+
+  #[derive(Debug, Clone, Default)]
+  pub struct Connections {
+    associations: IndexMap<BufferId, BufferTopic>,
+
+  }
+
+  impl Connections {
+    pub fn clients_for_buffer(&mut self, buffer_id: BufferId) -> &mut BufferTopic {
+      self
+        .associations
+        .entry(buffer_id)
+        .or_insert_with(BufferTopic::default)
+    }
+
+    pub fn record_buffer_client(&mut self, association: protocol::BufferAssociation) {
+      let protocol::BufferAssociation { buffer_id, remote } = association;
+      self.clients_for_buffer(buffer_id).add(remote);
+    }
+  }
 }

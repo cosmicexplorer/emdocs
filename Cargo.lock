@@ -140,6 +140,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "emdocs-protocol",
+ "indexmap",
  "proptest",
  "serde",
  "serde_json",

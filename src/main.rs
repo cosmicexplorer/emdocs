@@ -26,6 +26,9 @@
 #![deny(clippy::all)]
 
 mod json_client;
+use json_client::{connections, protocol};
+
+use emdocs_protocol::messages::{Message, Transform};
 
 use clap::{Parser, Subcommand};
 use serde_json;
@@ -45,8 +48,10 @@ enum Action {
 }
 
 /* echo '{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve | jq */
+/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}' | cargo run -- serve | jq */
 fn main() {
   let Opts { action } = Opts::parse();
+  let mut connections = connections::Connections::default();
   match action {
     Action::Serve => {
       let mut buf = String::new();
@@ -55,11 +60,22 @@ fn main() {
         .expect("io read should succeed")
         != 0
       {
-        let ide_msg: json_client::IDEMessage =
+        let ide_msg: protocol::IDEMessage =
           serde_json::from_str(&buf).expect("IDE message decoding failed");
         dbg!(&ide_msg);
-        let client_msg: Vec<u8> = serde_json::to_vec(&json_client::ClientMessage::ok)
-          .expect("client message encoding failed");
+        match ide_msg {
+          protocol::IDEMessage::link(association) => {
+            connections.record_buffer_client(association);
+          },
+          protocol::IDEMessage::doc(msg) => match msg {
+            Message::transform(Transform { source, r#type }) => {
+              let topic = connections.clients_for_buffer(source);
+              topic.broadcast(r#type);
+            },
+          },
+        }
+        let client_msg: Vec<u8> =
+          serde_json::to_vec(&protocol::ClientMessage::ok).expect("client message encoding failed");
         io::stdout()
           .write(&client_msg)
           .expect("io write should succeed");
