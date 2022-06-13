@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+/* Copyright 2022 Danny McClanahan */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+package emdocs.proto.messages;
+
+import "buffers.proto";
+import "transforms.proto";
+
+/* Apply a transform to particular buffer. */
+message Transform {
+  /* The buffer to transform. */
+  optional emdocs.proto.buffers.BufferId source = 1;
+  /* The types of transformations. */
+  oneof type {
+    /* Editing a buffer. */
+    emdocs.proto.transforms.Edit edit = 2;
+  }
+}
+
+/* This is the interface clients need to implement! */
+message Message {
+  /* All the known message types. */
+  oneof type {
+    /* Apply a transform. */
+    Transform transform = 1;
+  }
+}

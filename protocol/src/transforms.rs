@@ -230,7 +230,7 @@ mod serde_impl {
           EditPayload::Insert(insert) => proto::edit::Payload::Insert(insert.into()),
           EditPayload::Delete(delete) => proto::edit::Payload::Delete(delete.into()),
         };
-        proto::Edit {
+        Self {
           point: Some(point.into()),
           payload: Some(payload),
         }
