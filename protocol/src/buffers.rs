@@ -168,7 +168,7 @@ mod serde_impl {
     mod test {
       use super::*;
 
-      use serde_mux::traits::*;
+      use serde_mux::{Serializer, Deserializer};
 
       use proptest::prelude::*;
 

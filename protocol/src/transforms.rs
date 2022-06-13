@@ -37,6 +37,7 @@
 
 /// [`prost`] structs for serializing transforms.
 pub mod proto {
+  pub use crate::buffers::proto as buffers;
   #[doc(inline)]
   pub use proto::*;
   mod proto {
@@ -88,6 +89,17 @@ pub struct Edit {
   pub payload: EditPayload,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
+pub enum TransformType {
+  edit(Edit),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Transform {
+  pub r#type: TransformType,
+}
+
 #[cfg(test)]
 pub mod proptest_strategies {
   use super::*;
@@ -118,6 +130,14 @@ pub mod proptest_strategies {
   prop_compose! {
     pub fn new_edit()(point in new_point(), payload in new_edit_payload()) -> Edit {
       Edit { point, payload }
+    }
+  }
+  pub fn new_transform_type() -> impl Strategy<Value=TransformType> {
+    prop_oneof![new_edit().prop_map(TransformType::edit),]
+  }
+  prop_compose! {
+    pub fn new_transform()(r#type in new_transform_type()) -> Transform {
+      Transform { r#type }
     }
   }
 }
@@ -292,6 +312,64 @@ mod serde_impl {
           let resurrected =
             serde_mux::Protobuf::<Edit, proto::Edit>::deserialize(&buf).unwrap();
           prop_assert_eq!(edit, resurrected);
+        }
+      }
+    }
+  }
+
+  mod transform {
+    use super::*;
+
+    impl serde_mux::Schema for proto::Transform {
+      type Source = Transform;
+    }
+
+    impl TryFrom<proto::Transform> for Transform {
+      type Error = Error;
+
+      fn try_from(proto_message: proto::Transform) -> Result<Self, Error> {
+        let proto::Transform { r#type } = proto_message.clone();
+        let r#type = r#type.ok_or_else(|| {
+          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+            "type",
+            format!("{:?}", proto_message),
+          ))
+        })?;
+        let r#type = match r#type {
+          proto::transform::Type::Edit(edit) => TransformType::edit(edit.try_into()?),
+        };
+        Ok(Self { r#type })
+      }
+    }
+
+    impl From<Transform> for proto::Transform {
+      fn from(value: Transform) -> Self {
+        let Transform { r#type } = value;
+        let r#type = match r#type {
+          TransformType::edit(edit) => proto::transform::Type::Edit(edit.into()),
+        };
+        Self {
+          r#type: Some(r#type),
+        }
+      }
+    }
+
+    #[cfg(test)]
+    mod test {
+      use super::*;
+
+      use serde_mux::traits::*;
+
+      use proptest::prelude::*;
+
+      proptest! {
+        #[test]
+        fn test_serde_transform(transform in new_transform()) {
+          let protobuf = serde_mux::Protobuf::<Transform, proto::Transform>::new(transform.clone());
+          let buf: Box<[u8]> = protobuf.serialize();
+          let resurrected =
+            serde_mux::Protobuf::<Transform, proto::Transform>::deserialize(&buf).unwrap();
+          prop_assert_eq!(transform, resurrected);
         }
       }
     }

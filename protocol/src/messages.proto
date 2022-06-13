@@ -1,4 +1,4 @@
-syntax = "proto2";
+syntax = "proto3";
 
 /* Copyright 2022 Danny McClanahan */
 /* SPDX-License-Identifier: AGPL-3.0-only */
@@ -8,22 +8,38 @@ package emdocs.proto.messages;
 import "buffers.proto";
 import "transforms.proto";
 
-/* Apply a transform to particular buffer. */
-message Transform {
+/* This is the interface clients need to implement! */
+message Operation {
   /* The buffer to transform. */
   optional emdocs.proto.buffers.BufferId source = 1;
-  /* The types of transformations. */
+  /* The transform to perform. */
+  optional emdocs.proto.transforms.Transform transform = 2;
+}
+
+message OperationResult {}
+
+service OperationService {
+  rpc ProcessOperation (Operation) returns (OperationResult);
+}
+
+message RemoteClient {
+  optional string ip_address = 1;
+}
+
+message BufferAssociation {
+  optional emdocs.proto.buffers.BufferId buffer_id = 1;
+  optional RemoteClient remote = 2;
+}
+
+message IDEMessage {
   oneof type {
-    /* Editing a buffer. */
-    emdocs.proto.transforms.Edit edit = 2;
+    Operation doc = 1;
+    BufferAssociation link = 2;
   }
 }
 
-/* This is the interface clients need to implement! */
-message Message {
-  /* All the known message types. */
-  oneof type {
-    /* Apply a transform. */
-    Transform transform = 1;
-  }
+message ClientMessage {}
+
+service IDEService {
+  rpc ProcessIDEMessage (IDEMessage) returns (ClientMessage);
 }

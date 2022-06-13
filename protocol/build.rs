@@ -21,8 +21,8 @@
 fn main() {
   let protos = [
     "src/buffers.proto",
-    "src/messages.proto",
     "src/transforms.proto",
+    "src/messages.proto",
   ];
   for proto in &protos {
     println!("cargo:rerun-if-changed={}", proto);

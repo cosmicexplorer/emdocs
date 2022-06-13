@@ -1,9 +1,11 @@
-syntax = "proto2";
+syntax = "proto3";
 
 /* Copyright 2022 Danny McClanahan */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
 package emdocs.proto.transforms;
+
+import "buffers.proto";
 
 /* Insert a string at point. */
 message Insert {
@@ -37,5 +39,13 @@ message Edit {
     Insert insert = 2;
     /* Delete some distance from some point. */
     Delete delete = 3;
+  }
+}
+
+message Transform {
+  /* The types of transformations. */
+  oneof type {
+    /* Editing a buffer. */
+    Edit edit = 1;
   }
 }
