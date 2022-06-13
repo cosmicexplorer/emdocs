@@ -1,0 +1,41 @@
+syntax = "proto2";
+
+/* Copyright 2022 Danny McClanahan */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+package emdocs.proto.transforms;
+
+/* Insert a string at point. */
+message Insert {
+  /* String to insert. */
+  optional string contents = 1;
+}
+
+/* Delete some distance from point. */
+message Delete {
+  /* Number of *successive* chars to delete. */
+  optional uint32 distance = 1;
+}
+
+/* A location within a buffer.
+ *
+ * Analogous to "point" in emacs. */
+message Point {
+  /* Number of unicode code points from the start of the buffer.
+   *
+   * TODO: use bignum? */
+  optional uint32 code_point_index = 1;
+}
+
+/* Variants of buffer edits. */
+message Edit {
+  /* The location to act at. */
+  optional Point point = 1;
+  /* The action to perform. */
+  oneof payload {
+    /* Insert a string at a point. */
+    Insert insert = 2;
+    /* Delete some distance from some point. */
+    Delete delete = 3;
+  }
+}

@@ -1,5 +1,5 @@
 /*
- * Description: A client for the emdocs protocol.
+ * Description: Build script for protocol buffers.
  *
  * Copyright (C) 2022 Danny McClanahan <dmcC2@hypnicjerk.ai>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -18,16 +18,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! A client for the emdocs protocol.
-
-/* #![warn(missing_docs)] */
-#![deny(rustdoc::missing_crate_level_docs)]
-/* Make all doctests fail if they produce any warnings. */
-#![doc(test(attr(deny(warnings))))]
-#![deny(clippy::all)]
-
-use emdocs_protocol;
-
 fn main() {
-  println!("Hello, world!");
+  let protos = ["src/transforms.proto"];
+  for proto in &protos {
+    println!("cargo:rerun-if-changed={}", proto);
+  }
+  prost_build::compile_protos(&protos, &["src"]).expect("protobufs were somehow invalid?");
 }

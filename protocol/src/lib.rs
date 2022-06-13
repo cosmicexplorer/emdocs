@@ -1,5 +1,5 @@
 /*
- * Description: A client for the emdocs protocol.
+ * Description: A p2p online text buffer sharing protocol.
  *
  * Copyright (C) 2022 Danny McClanahan <dmcC2@hypnicjerk.ai>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -18,7 +18,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! A client for the emdocs protocol.
+//! A p2p online text buffer sharing protocol.
 
 /* #![warn(missing_docs)] */
 #![deny(rustdoc::missing_crate_level_docs)]
@@ -26,8 +26,16 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol;
+mod error;
+pub mod transforms;
 
-fn main() {
-  println!("Hello, world!");
+pub use error::Error;
+
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn it_works() {
+    let result = 2 + 2;
+    assert_eq!(result, 4);
+  }
 }

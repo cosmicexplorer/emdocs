@@ -1,5 +1,5 @@
 /*
- * Description: A client for the emdocs protocol.
+ * Description: Define top-level error types.
  *
  * Copyright (C) 2022 Danny McClanahan <dmcC2@hypnicjerk.ai>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -18,16 +18,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! A client for the emdocs protocol.
+//! Define top-level [enum@Error] types.
 
-/* #![warn(missing_docs)] */
-#![deny(rustdoc::missing_crate_level_docs)]
-/* Make all doctests fail if they produce any warnings. */
-#![doc(test(attr(deny(warnings))))]
-#![deny(clippy::all)]
+use serde_mux;
 
-use emdocs_protocol;
+use displaydoc::Display;
+use thiserror::Error;
 
-fn main() {
-  println!("Hello, world!");
+/// Parent error type for this crate.
+#[derive(Debug, Display, Error)]
+pub enum Error {
+  /// an error {0} occurred when en/decoding a protobuf
+  Proto(#[from] serde_mux::ProtobufCodingFailure),
+}
+
+impl From<prost::DecodeError> for Error {
+  fn from(value: prost::DecodeError) -> Self {
+    Self::Proto(value.into())
+  }
+}
+
+impl From<prost::EncodeError> for Error {
+  fn from(value: prost::EncodeError) -> Self {
+    Self::Proto(value.into())
+  }
 }

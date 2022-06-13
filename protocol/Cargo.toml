@@ -1,0 +1,27 @@
+[package]
+name                    = "emdocs-protocol"
+description             = "A p2p online text buffer sharing protocol."
+authors                 = ["Danny McClanahan <dmcC2@hypnicjerk.ai>"]
+license                 = "AGPL-3.0-or-later"
+repository              = "https://github.com/cosmicexplorer/emdocs"
+version                 = "0.0.0"
+edition                 = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+displaydoc              = { git = "https://github.com/yaahc/displaydoc", rev = "7159bb5c9d41ca3c7ccf04ae86ae3acb0ea12a27" }
+prost = "0.10"
+thiserror = "1.0.30"
+
+[dependencies.serde-mux]
+git = "https://github.com/cosmicexplorer/serde-mux"
+rev = "cd958cbc90cbf454c4c3c81fea8c314215565240"
+features = ["protobuf"]
+
+[build-dependencies]
+# FIXME: Switch to Apache Thrift! See thrift-generated rust code at
+# <https://github.com/cosmicexplorer/learning-progress-bar/blob/1ada17c77cf14a948430161f5c648ae3375aa4ba/terminal/thrift/streaming_interface.rs>
+# for example.
+prost-build = "0.10"
