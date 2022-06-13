@@ -4,8 +4,6 @@ emdocs
 A minor mode for emacs to create buffers readily editable by multiple users over
 the internet. (Pronounced "M-dox.")
 
-# INTRO
-
 Currently functional, need to iron out a few bugs before putting it on MELPA.
 
 * emdocs-disconnect/emdocs-disconnect-all doesn't disconnect servers sometimes
@@ -15,3 +13,6 @@ Currently functional, need to iron out a few bugs before putting it on MELPA.
   otherwise buffers can get out of sync if one fails to note a keypress, for
   example.
 * Need to get windows support.
+
+# License
+[AGPL 3.0 **or any later version**](./LICENSE)

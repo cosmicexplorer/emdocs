@@ -1,0 +1,13 @@
+[package]
+name                    = "emdocs"
+description             = "A p2p online text buffer sharing protocol."
+authors                 = ["Danny McClanahan <dmcC2@hypnicjerk.ai>"]
+license                 = "AGPL-3.0-or-later"
+repository              = "https://github.com/cosmicexplorer/emdocs"
+version                 = "0.0.0"
+edition                 = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

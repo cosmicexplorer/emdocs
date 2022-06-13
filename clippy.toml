@@ -1,0 +1,4 @@
+max-fn-params-bools = 0
+
+[third-party]
+clippy-feature = "nightly"
