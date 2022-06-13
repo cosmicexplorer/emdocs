@@ -20,20 +20,17 @@
 
 //! A client for the emdocs protocol.
 
-/* #![warn(missing_docs)] */
 #![deny(rustdoc::missing_crate_level_docs)]
 /* Make all doctests fail if they produce any warnings. */
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-mod connections;
-
-use emdocs_protocol::buffers::BufferId;
+mod json_client;
 
 use clap::{Parser, Subcommand};
 use serde_json;
 
-use std::io;
+use std::io::{self, Write};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -44,22 +41,29 @@ struct Opts {
 
 #[derive(Debug, Subcommand)]
 enum Action {
-  NewBuffer,
-  ReadBuffer,
+  Serve,
 }
 
+/* echo '{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve | jq */
 fn main() {
   let Opts { action } = Opts::parse();
   match action {
-    Action::NewBuffer => {
-      let buf = BufferId::default();
-      let j = serde_json::to_string(&buf).expect("expected json encoding to succeed");
-      println!("{}", j);
-    },
-    Action::ReadBuffer => {
-      let buf: BufferId =
-        serde_json::from_reader(io::stdin()).expect("expected json decoding to succeed");
-      println!("{:?}", buf);
+    Action::Serve => {
+      let mut buf = String::new();
+      while io::stdin()
+        .read_line(&mut buf)
+        .expect("io read should succeed")
+        != 0
+      {
+        let ide_msg: json_client::IDEMessage =
+          serde_json::from_str(&buf).expect("IDE message decoding failed");
+        dbg!(&ide_msg);
+        let client_msg: Vec<u8> = serde_json::to_vec(&json_client::ClientMessage::ok)
+          .expect("client message encoding failed");
+        io::stdout()
+          .write(&client_msg)
+          .expect("io write should succeed");
+      }
     },
   }
 }

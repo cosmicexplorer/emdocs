@@ -26,7 +26,7 @@
 //! use emdocs_protocol::transforms::*;
 //!
 //! let insert = Insert { contents: "hey".to_string() };
-//! let edit = Edit { point: Point::default(), payload: EditPayload::Insert(insert) };
+//! let edit = Edit { point: Point::default(), payload: EditPayload::insert(insert) };
 //! let edit_proto = Protobuf::<Edit, proto::Edit>::new(edit.clone());
 //! let buf = edit_proto.serialize();
 //! let edit_serde = Protobuf::<Edit, proto::Edit>::deserialize(&buf)?;
@@ -46,7 +46,7 @@ pub mod proto {
 }
 
 use displaydoc::Display;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Insert {
@@ -59,7 +59,9 @@ pub struct Delete {
 }
 
 /// <point @ {code_point_index}>
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+  Debug, Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub struct Point {
   pub code_point_index: u32,
 }
@@ -73,9 +75,10 @@ impl Default for Point {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
 pub enum EditPayload {
-  Insert(Insert),
-  Delete(Delete),
+  insert(Insert),
+  delete(Delete),
 }
 
 /// An operational transform editing a buffer.
@@ -108,8 +111,8 @@ pub mod proptest_strategies {
   }
   pub fn new_edit_payload() -> impl Strategy<Value=EditPayload> {
     prop_oneof![
-      new_insert().prop_map(EditPayload::Insert),
-      new_delete().prop_map(EditPayload::Delete),
+      new_insert().prop_map(EditPayload::insert),
+      new_delete().prop_map(EditPayload::delete),
     ]
   }
   prop_compose! {
@@ -252,8 +255,8 @@ mod serde_impl {
           ))
         })?;
         let payload = match payload {
-          proto::edit::Payload::Insert(insert) => EditPayload::Insert(insert.try_into()?),
-          proto::edit::Payload::Delete(delete) => EditPayload::Delete(delete.try_into()?),
+          proto::edit::Payload::Insert(insert) => EditPayload::insert(insert.try_into()?),
+          proto::edit::Payload::Delete(delete) => EditPayload::delete(delete.try_into()?),
         };
         Ok(Self { point, payload })
       }
@@ -263,8 +266,8 @@ mod serde_impl {
       fn from(value: Edit) -> Self {
         let Edit { point, payload } = value;
         let payload = match payload {
-          EditPayload::Insert(insert) => proto::edit::Payload::Insert(insert.into()),
-          EditPayload::Delete(delete) => proto::edit::Payload::Delete(delete.into()),
+          EditPayload::insert(insert) => proto::edit::Payload::Insert(insert.into()),
+          EditPayload::delete(delete) => proto::edit::Payload::Delete(delete.into()),
         };
         Self {
           point: Some(point.into()),

@@ -141,6 +141,7 @@ dependencies = [
  "clap",
  "emdocs-protocol",
  "proptest",
+ "serde",
  "serde_json",
 ]
 

@@ -60,8 +60,9 @@ use crate::{buffers::BufferId, transforms::Edit};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
 pub enum TransformType {
-  Edit(Edit),
+  edit(Edit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -72,8 +73,9 @@ pub struct Transform {
 
 /// The interface all clients need to implement!
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
 pub enum Message {
-  Transform(Transform),
+  transform(Transform),
 }
 
 #[cfg(test)]
@@ -84,7 +86,7 @@ pub mod proptest_strategies {
   use proptest::{prelude::*, strategy::Strategy};
 
   pub fn new_transform_type() -> impl Strategy<Value=TransformType> {
-    prop_oneof![new_edit().prop_map(TransformType::Edit),]
+    prop_oneof![new_edit().prop_map(TransformType::edit),]
   }
   prop_compose! {
     pub fn new_transform()(source in new_buffer_id(), r#type in new_transform_type()) -> Transform {
@@ -133,7 +135,7 @@ mod serde_impl {
           ))
         })?;
         let r#type = match r#type {
-          proto::transform::Type::Edit(edit) => TransformType::Edit(edit.try_into()?),
+          proto::transform::Type::Edit(edit) => TransformType::edit(edit.try_into()?),
         };
         Ok(Self { source, r#type })
       }
@@ -143,7 +145,7 @@ mod serde_impl {
       fn from(value: Transform) -> Self {
         let Transform { source, r#type } = value;
         let r#type = match r#type {
-          TransformType::Edit(edit) => proto::transform::Type::Edit(edit.into()),
+          TransformType::edit(edit) => proto::transform::Type::Edit(edit.into()),
         };
         Self {
           source: Some(source.into()),
@@ -172,7 +174,7 @@ mod serde_impl {
           ))
         })?;
         Ok(match r#type {
-          proto::message::Type::Transform(transform) => Message::Transform(transform.try_into()?),
+          proto::message::Type::Transform(transform) => Message::transform(transform.try_into()?),
         })
       }
     }
@@ -180,7 +182,7 @@ mod serde_impl {
     impl From<Message> for proto::Message {
       fn from(value: Message) -> Self {
         let r#type = match value {
-          Message::Transform(transform) => proto::message::Type::Transform(transform.into()),
+          Message::transform(transform) => proto::message::Type::Transform(transform.into()),
         };
         Self {
           r#type: Some(r#type),
