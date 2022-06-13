@@ -26,8 +26,32 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol;
+mod connections;
+
+use emdocs_protocol::buffers::BufferId;
+
+use clap::{Parser, Subcommand};
+use serde_json;
+
+#[derive(Debug, Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Opts {
+  #[clap(subcommand)]
+  action: Action,
+}
+
+#[derive(Debug, Subcommand)]
+enum Action {
+  NewBuffer,
+}
 
 fn main() {
-  println!("Hello, world!");
+  let Opts { action } = Opts::parse();
+  match action {
+    Action::NewBuffer => {
+      let buf = BufferId::default();
+      let j = serde_json::to_string(&buf).expect("expected json encoding to succeed");
+      println!("{}", j);
+    },
+  }
 }

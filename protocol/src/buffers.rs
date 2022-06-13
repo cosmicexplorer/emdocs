@@ -88,6 +88,8 @@ mod serde_impl {
   mod buffer_id {
     use super::*;
 
+    use serde::ser::{Serialize, SerializeStruct, Serializer};
+
     impl serde_mux::Schema for proto::BufferId {
       type Source = BufferId;
     }
@@ -119,6 +121,15 @@ mod serde_impl {
         proto::BufferId {
           uuid: Some(uuid.as_bytes().to_vec()),
         }
+      }
+    }
+
+    impl Serialize for BufferId {
+      fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+      where S: Serializer {
+        let mut buffer_id = serializer.serialize_struct("BufferId", 1)?;
+        buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
+        buffer_id.end()
       }
     }
 
