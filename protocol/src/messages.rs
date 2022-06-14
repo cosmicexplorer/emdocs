@@ -160,8 +160,8 @@ impl OperationService for OperationServiceClient {
       .client
       .lock()
       .await
-      /* Annoying that this is generated as an constrained impl method over the generic client
-       * type, not related to the generated trait. */
+      /* TODO: Annoying that this is generated as an constrained impl method over the generic client
+       * type, not related to the generated trait (makes it hard to use in generic code). */
       .process_operation(request)
       .await?
       .into_inner();
@@ -172,27 +172,25 @@ impl OperationService for OperationServiceClient {
 
 #[tonic::async_trait]
 pub trait IDEService {
-  async fn process_ide_msg(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError>;
+  async fn process_ide_message(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError>;
 }
 
 #[derive(Clone)]
-pub struct IDEServiceClient {/* op_dispatcher: OperationServiceClient, */}
+pub struct IDEServiceClient<OS> {
+  op_dispatcher: OS,
+}
 
-impl IDEServiceClient {
-  /* pub fn new(op_dispatcher: OperationServiceClient) -> Self { Self { op_dispatcher } } */
-  pub fn new() -> Self { Self {} }
+impl<OS> IDEServiceClient<OS> {
+  pub fn from_client(op_dispatcher: OS) -> Self { Self { op_dispatcher } }
 }
 
 #[tonic::async_trait]
-impl IDEService for IDEServiceClient {
-  async fn process_ide_msg(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError> {
-    dbg!(&request);
+impl<OS: OperationService+Send+Sync> IDEService for IDEServiceClient<OS> {
+  async fn process_ide_message(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError> {
     let client_msg = match request {
       IDEMessage::op(op) => {
-        /* let result = self.op_dispatcher.process_operation(op).await?; */
-        /* ClientMessage::result(result.into()) */
-        eprintln!("do nothing with op {:?}", op);
-        ClientMessage::ok
+        let result = self.op_dispatcher.process_operation(op).await?;
+        ClientMessage::result(result.into())
       },
       IDEMessage::link(link) => {
         eprintln!("do nothing with link {:?}", link);

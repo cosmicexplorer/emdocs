@@ -59,9 +59,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       /* let addr = format!("[::1]:{}", port).parse()?; */
       /* let operation_service = */
       /*   messages::OperationServiceClient::connect(format!("http://[::1]:{}", port)).await?; */
+      struct OS;
+      #[tonic::async_trait]
+      impl messages::OperationService for OS {
+        async fn process_operation(
+          &self,
+          request: messages::Operation,
+        ) -> Result<messages::OperationResult, messages::ProtocolError> {
+          eprintln!("do nothing with operation {:?}", request);
+          Ok(messages::OperationResult::ok)
+        }
+      }
 
-      /* let ide_service = messages::IDEServiceClient::new(operation_service); */
-      let ide_service = messages::IDEServiceClient::new();
+      let ide_service = messages::IDEServiceClient::from_client(OS);
       /* let op_server = tonic::transport::Server::builder() */
       /*   .add_service( */
       /*     messages::proto::operation_service_server::OperationServiceServer::new( */
@@ -75,8 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       /* Hook up stdio to an instance of an IDEService by JSON en/decoding lines. */
       for line in io::stdin().lock().lines() {
         let ide_msg: messages::IDEMessage = serde_json::from_str(&line?)?;
-        dbg!(&ide_msg);
-        let client_msg = ide_service.process_ide_msg(ide_msg).await?;
+        let client_msg = ide_service.process_ide_message(ide_msg).await?;
         let mut client_msg: Vec<u8> = serde_json::to_vec(&client_msg)?;
         /* Ensure we have clear lines between entries in stdout. */
         client_msg.push(b'\n');
