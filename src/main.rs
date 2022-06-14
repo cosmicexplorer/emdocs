@@ -58,19 +58,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let Opts { action, port } = Opts::parse();
 
   /* FIXME: randomly generate this port! */
-  /* let addr = format!("[::1]:{}", port.unwrap_or(37263)).parse()?; */
-  /* let operation_service = messages::OperationService::default(); */
+  let addr = format!("[::1]:{}", port.unwrap_or(37263)).parse()?;
+  let operation_service = messages::OperationService::default();
 
-  /* tonic::transport::Server::builder() */
-  /*   .add_service( */
-  /*     messages::proto::operation_service_server::OperationServiceServer::new(operation_service), */
-  /*   ) */
-  /*   .serve(addr) */
-  /*   .await?; */
+  let op_server = tonic::transport::Server::builder()
+    .add_service(
+      messages::proto::operation_service_server::OperationServiceServer::new(operation_service),
+    )
+    .serve(addr);
 
   let ide_service = messages::IDEService::default();
 
-  /* let connections = connections::Connections::new(); */
   match action {
     Action::Serve => {
       for line in io::stdin().lock().lines() {
@@ -83,13 +81,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
           .await?
           .into_inner();
         let client_msg: messages::ClientMessage = client_msg.try_into()?;
-        let client_msg: Vec<u8> =
+        let mut client_msg: Vec<u8> =
           serde_json::to_vec(&client_msg).expect("client message encoding failed");
+        client_msg.push(b'\n');
         io::stdout()
           .write(&client_msg)
           .expect("io write should succeed");
       }
     },
   }
+
+  op_server.await?;
+
   Ok(())
 }

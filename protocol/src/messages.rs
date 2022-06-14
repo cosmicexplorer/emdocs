@@ -66,6 +66,9 @@ pub struct Operation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct OperationResult;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
 pub enum IDEMessage {
   op(Operation),
@@ -89,15 +92,16 @@ pub struct BufferAssociation {
 pub struct ClientMessage;
 
 #[derive(Debug, Default)]
-pub struct OperationService;
+pub struct OperationService {/* The IDE's VFS is an OperationService!!! */}
 
 #[tonic::async_trait]
 impl proto::operation_service_server::OperationService for OperationService {
   async fn process_operation(
     &self,
-    _request: tonic::Request<proto::Operation>,
+    request: tonic::Request<proto::Operation>,
   ) -> Result<tonic::Response<proto::OperationResult>, tonic::Status> {
-    todo!("idk!")
+    dbg!(request);
+    Ok(tonic::Response::new(OperationResult.into()))
   }
 }
 
@@ -108,8 +112,9 @@ pub struct IDEService;
 impl proto::ide_service_server::IdeService for IDEService {
   async fn process_ide_message(
     &self,
-    _request: tonic::Request<proto::IdeMessage>,
+    request: tonic::Request<proto::IdeMessage>,
   ) -> Result<tonic::Response<proto::ClientMessage>, tonic::Status> {
+    dbg!(request);
     Ok(tonic::Response::new(ClientMessage.into()))
   }
 }
@@ -161,6 +166,24 @@ mod serde_impl {
   use serde_mux;
 
   use std::convert::{TryFrom, TryInto};
+
+  mod operation_result {
+    use super::*;
+
+    impl serde_mux::Schema for proto::OperationResult {
+      type Source = OperationResult;
+    }
+
+    impl TryFrom<proto::OperationResult> for OperationResult {
+      type Error = Error;
+
+      fn try_from(proto_message: proto::OperationResult) -> Result<Self, Error> { Ok(Self) }
+    }
+
+    impl From<OperationResult> for proto::OperationResult {
+      fn from(value: OperationResult) -> Self { Self {} }
+    }
+  }
 
   mod operation {
     use super::*;

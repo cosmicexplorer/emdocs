@@ -8,6 +8,7 @@ package emdocs.proto.messages;
 import "buffers.proto";
 import "transforms.proto";
 
+/* A modification to the universe. */
 message Operation {
   /* The buffer to transform. */
   optional emdocs.proto.buffers.BufferId source = 1;
@@ -17,6 +18,7 @@ message Operation {
 
 message OperationResult {}
 
+/* A universe that receives effects. */
 service OperationService {
   rpc ProcessOperation (Operation) returns (OperationResult);
 }
@@ -30,6 +32,7 @@ message BufferAssociation {
   optional RemoteClient remote = 2;
 }
 
+/* A command from an IDE. */
 message IDEMessage {
   oneof type {
     Operation op = 1;
@@ -39,6 +42,7 @@ message IDEMessage {
 
 message ClientMessage {}
 
+/* A conversation between the client and an IDE. */
 service IDEService {
   rpc ProcessIDEMessage (IDEMessage) returns (ClientMessage);
 }
