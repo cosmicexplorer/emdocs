@@ -91,7 +91,7 @@ pub struct BufferAssociation {
 #[allow(non_camel_case_types)]
 pub struct ClientMessage;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct OperationService {/* The IDE's VFS is an OperationService!!! */}
 
 #[tonic::async_trait]
@@ -105,7 +105,7 @@ impl proto::operation_service_server::OperationService for OperationService {
   }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct IDEService;
 
 #[tonic::async_trait]
@@ -140,7 +140,7 @@ pub mod proptest_strategies {
     }
   }
   prop_compose! {
-    pub fn new_remote_client()(ip_address in any::<String>()) -> RemoteClient {
+    pub fn new_remote_client()(ip_address in r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+") -> RemoteClient {
       RemoteClient { ip_address }
     }
   }

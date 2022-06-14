@@ -38,8 +38,8 @@ struct Opts {
   #[clap(subcommand)]
   action: Action,
 
-  #[clap(short, long)]
-  port: Option<usize>,
+  #[clap(short, long, default_value_t = 37263)]
+  port: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -57,9 +57,8 @@ enum Action {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let Opts { action, port } = Opts::parse();
 
-  /* FIXME: randomly generate this port! */
-  let addr = format!("[::1]:{}", port.unwrap_or(37263)).parse()?;
-  let operation_service = messages::OperationService::default();
+  let addr = format!("[::1]:{}", port).parse()?;
+  let operation_service = messages::OperationService {};
 
   let op_server = tonic::transport::Server::builder()
     .add_service(
@@ -67,10 +66,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .serve(addr);
 
-  let ide_service = messages::IDEService::default();
+  let ide_service = messages::IDEService;
 
   match action {
     Action::Serve => {
+      /* Hook up stdio to an instance of an IDEService by JSON en/decoding lines. */
       for line in io::stdin().lock().lines() {
         let line = line.expect("io error reading stdin line");
         let ide_msg: emdocs_protocol::messages::IDEMessage =
@@ -83,10 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let client_msg: messages::ClientMessage = client_msg.try_into()?;
         let mut client_msg: Vec<u8> =
           serde_json::to_vec(&client_msg).expect("client message encoding failed");
+        /* Ensure we have clear lines between entries in stdout. */
         client_msg.push(b'\n');
         io::stdout()
           .write(&client_msg)
-          .expect("io write should succeed");
+          .expect("io error writing stdout line");
       }
     },
   }

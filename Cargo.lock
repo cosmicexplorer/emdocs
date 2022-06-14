@@ -244,6 +244,7 @@ dependencies = [
  "clap",
  "emdocs-protocol",
  "futures",
+ "hyper",
  "indexmap",
  "parking_lot",
  "proptest",
