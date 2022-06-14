@@ -25,7 +25,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol::messages::{self, proto, IDEService};
+use emdocs_protocol::messages::{self, IDEService};
 
 use clap::{Parser, Subcommand};
 use serde_json;
@@ -37,61 +37,50 @@ use std::io::{self, BufRead, Write};
 struct Opts {
   #[clap(subcommand)]
   action: Action,
-
-  #[clap(short, long, default_value_t = 37263)]
-  port: usize,
 }
 
 #[derive(Debug, Subcommand)]
 enum Action {
-  Serve,
+  /// Communicate via lines of JSON over stdio.
+  Serve {
+    /* TODO: what should this default port be? */
+    #[clap(short, long, default_value_t = 37263)]
+    port: usize,
+  },
 }
 
-/* echo '{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve | jq */
-/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "asdf"}}}' | cargo run -- serve | jq */
-/* -- */
-/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"doc": {"transform": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
-/* -- */
 /* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let Opts { action, port } = Opts::parse();
-
-  /* let addr = format!("[::1]:{}", port).parse()?; */
-  let client = proto::operation_service_client::OperationServiceClient::connect(format!(
-    "http://[::1]:{}",
-    port
-  ))
-  .await?;
-
-  let operation_service = messages::OperationServiceClient::new(client);
-
-  let ide_service = messages::IDEServiceClient::new(operation_service);
-  /* let op_server = tonic::transport::Server::builder() */
-  /*   .add_service( */
-  /*     messages::proto::operation_service_server::OperationServiceServer::new( */
-  /*       operation_service.clone(), */
-  /*     ), */
-  /*   ) */
-  /*   .serve(addr); */
-
+  let Opts { action } = Opts::parse();
 
   match action {
-    Action::Serve => {
+    Action::Serve { port } => {
+      /* let addr = format!("[::1]:{}", port).parse()?; */
+      /* let operation_service = */
+      /*   messages::OperationServiceClient::connect(format!("http://[::1]:{}", port)).await?; */
+
+      /* let ide_service = messages::IDEServiceClient::new(operation_service); */
+      let ide_service = messages::IDEServiceClient::new();
+      /* let op_server = tonic::transport::Server::builder() */
+      /*   .add_service( */
+      /*     messages::proto::operation_service_server::OperationServiceServer::new( */
+      /*       operation_service.clone(), */
+      /*     ), */
+      /*   ) */
+      /*   .serve(addr); */
+
+      /* TODO: The IDE's VFS is an OperationService!!! */
+
       /* Hook up stdio to an instance of an IDEService by JSON en/decoding lines. */
       for line in io::stdin().lock().lines() {
-        let line = line.expect("io error reading stdin line");
-        let ide_msg: emdocs_protocol::messages::IDEMessage =
-          serde_json::from_str(&line).expect("IDE message decoding failed");
+        let ide_msg: messages::IDEMessage = serde_json::from_str(&line?)?;
         dbg!(&ide_msg);
         let client_msg = ide_service.process_ide_msg(ide_msg).await?;
-        let mut client_msg: Vec<u8> =
-          serde_json::to_vec(&client_msg).expect("client message encoding failed");
+        let mut client_msg: Vec<u8> = serde_json::to_vec(&client_msg)?;
         /* Ensure we have clear lines between entries in stdout. */
         client_msg.push(b'\n');
-        io::stdout()
-          .write(&client_msg)
-          .expect("io error writing stdout line");
+        io::stdout().write(&client_msg)?;
       }
     },
   }
