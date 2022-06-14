@@ -25,10 +25,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol::{
-  messages::{self, proto::ide_service_server::IdeService},
-  transforms::Transform,
-};
+use emdocs_protocol::messages::{self, proto::ide_service_server::IdeService};
 
 use clap::{Parser, Subcommand};
 use serde_json;

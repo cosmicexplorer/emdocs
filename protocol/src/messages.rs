@@ -89,20 +89,20 @@ pub struct BufferAssociation {
 pub struct ClientMessage;
 
 #[derive(Debug, Default)]
-pub struct OperationService {}
+pub struct OperationService;
 
 #[tonic::async_trait]
 impl proto::operation_service_server::OperationService for OperationService {
   async fn process_operation(
     &self,
-    request: tonic::Request<proto::Operation>,
+    _request: tonic::Request<proto::Operation>,
   ) -> Result<tonic::Response<proto::OperationResult>, tonic::Status> {
     todo!("idk!")
   }
 }
 
 #[derive(Debug, Default)]
-pub struct IDEService {}
+pub struct IDEService;
 
 #[tonic::async_trait]
 impl proto::ide_service_server::IdeService for IDEService {
