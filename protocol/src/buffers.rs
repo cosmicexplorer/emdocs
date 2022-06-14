@@ -44,7 +44,23 @@ pub mod proto {
   }
 }
 
+use displaydoc::Display;
+use thiserror::Error;
 use uuid::Uuid;
+
+#[derive(Debug, Display, Error)]
+pub enum BufferError {
+  /// protobuf error {0}
+  Proto(#[from] serde_mux::ProtobufCodingFailure),
+}
+
+impl From<prost::DecodeError> for BufferError {
+  fn from(value: prost::DecodeError) -> Self { Self::Proto(value.into()) }
+}
+
+impl From<prost::EncodeError> for BufferError {
+  fn from(value: prost::EncodeError) -> Self { Self::Proto(value.into()) }
+}
 
 /// A serializable identifier for a buffer sharable across time and space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -79,7 +95,6 @@ mod serde_impl {
   #[cfg(test)]
   use super::proptest_strategies::*;
   use super::*;
-  use crate::error::Error;
 
   use serde_mux;
 
@@ -100,14 +115,14 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::BufferId> for BufferId {
-      type Error = Error;
+      type Error = BufferError;
 
-      fn try_from(proto_message: proto::BufferId) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::BufferId) -> Result<Self, BufferError> {
         let proto::BufferId { uuid } = proto_message.clone();
         let uuid: [u8; 16] = uuid
           .clone()
           .ok_or_else(|| {
-            Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+            BufferError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
               "uuid",
               format!("{:?}", proto_message),
             ))
@@ -168,7 +183,7 @@ mod serde_impl {
     mod test {
       use super::*;
 
-      use serde_mux::{Serializer, Deserializer};
+      use serde_mux::{Deserializer, Serializer};
 
       use proptest::prelude::*;
 

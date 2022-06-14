@@ -20,22 +20,16 @@
 
 //! Define top-level [enum@Error] types.
 
-use serde_mux;
-
 use displaydoc::Display;
 use thiserror::Error;
 
 /// Parent error type for this crate.
 #[derive(Debug, Display, Error)]
 pub enum Error {
-  /// an error {0} occurred when en/decoding a protobuf
-  Proto(#[from] serde_mux::ProtobufCodingFailure),
-}
-
-impl From<prost::DecodeError> for Error {
-  fn from(value: prost::DecodeError) -> Self { Self::Proto(value.into()) }
-}
-
-impl From<prost::EncodeError> for Error {
-  fn from(value: prost::EncodeError) -> Self { Self::Proto(value.into()) }
+  /// an error {0} occured during the processing of an operation
+  Protocol(#[from] crate::messages::ProtocolError),
+  /// an error {0} occurred when handling buffers
+  Buffer(#[from] crate::buffers::BufferError),
+  /// an error {0} when handling transforms
+  Transform(#[from] crate::transforms::TransformError),
 }

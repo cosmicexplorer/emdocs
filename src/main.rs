@@ -25,7 +25,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol::messages::{self, proto::ide_service_server::IdeService};
+use emdocs_protocol::messages::{self, proto, IDEService};
 
 use clap::{Parser, Subcommand};
 use serde_json;
@@ -57,16 +57,24 @@ enum Action {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let Opts { action, port } = Opts::parse();
 
-  let addr = format!("[::1]:{}", port).parse()?;
-  let operation_service = messages::OperationService {};
+  /* let addr = format!("[::1]:{}", port).parse()?; */
+  let client = proto::operation_service_client::OperationServiceClient::connect(format!(
+    "http://[::1]:{}",
+    port
+  ))
+  .await?;
 
-  let op_server = tonic::transport::Server::builder()
-    .add_service(
-      messages::proto::operation_service_server::OperationServiceServer::new(operation_service),
-    )
-    .serve(addr);
+  let operation_service = messages::OperationServiceClient::new(client);
 
-  let ide_service = messages::IDEService;
+  let ide_service = messages::IDEServiceClient::new(operation_service);
+  /* let op_server = tonic::transport::Server::builder() */
+  /*   .add_service( */
+  /*     messages::proto::operation_service_server::OperationServiceServer::new( */
+  /*       operation_service.clone(), */
+  /*     ), */
+  /*   ) */
+  /*   .serve(addr); */
+
 
   match action {
     Action::Serve => {
@@ -76,11 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ide_msg: emdocs_protocol::messages::IDEMessage =
           serde_json::from_str(&line).expect("IDE message decoding failed");
         dbg!(&ide_msg);
-        let client_msg: messages::proto::ClientMessage = ide_service
-          .process_ide_message(tonic::Request::new(ide_msg.into()))
-          .await?
-          .into_inner();
-        let client_msg: messages::ClientMessage = client_msg.try_into()?;
+        let client_msg = ide_service.process_ide_msg(ide_msg).await?;
         let mut client_msg: Vec<u8> =
           serde_json::to_vec(&client_msg).expect("client message encoding failed");
         /* Ensure we have clear lines between entries in stdout. */
@@ -92,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     },
   }
 
-  op_server.await?;
+  /* op_server.await?; */
 
   Ok(())
 }

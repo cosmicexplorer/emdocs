@@ -16,7 +16,11 @@ message Operation {
   optional emdocs.proto.transforms.Transform transform = 2;
 }
 
-message OperationResult {}
+message OperationResult {
+  oneof type {
+    OkResult ok = 1;
+  }
+}
 
 /* A universe that receives effects. */
 service OperationService {
@@ -40,7 +44,14 @@ message IDEMessage {
   }
 }
 
-message ClientMessage {}
+message OkResult {}
+
+message ClientMessage {
+  oneof type {
+    OperationResult result = 1;
+    OkResult ok = 2;
+  }
+}
 
 /* A conversation between the client and an IDE. */
 service IDEService {

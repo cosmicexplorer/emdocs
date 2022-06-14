@@ -48,6 +48,21 @@ pub mod proto {
 
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Debug, Display, Error)]
+pub enum TransformError {
+  /// an error {0} occurred when en/decoding a protobuf
+  Proto(#[from] serde_mux::ProtobufCodingFailure),
+}
+
+impl From<prost::DecodeError> for TransformError {
+  fn from(value: prost::DecodeError) -> Self { Self::Proto(value.into()) }
+}
+
+impl From<prost::EncodeError> for TransformError {
+  fn from(value: prost::EncodeError) -> Self { Self::Proto(value.into()) }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Insert {
@@ -146,7 +161,6 @@ mod serde_impl {
   #[cfg(test)]
   use super::proptest_strategies::*;
   use super::*;
-  use crate::error::Error;
 
   use serde_mux;
 
@@ -160,12 +174,12 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::Insert> for Insert {
-      type Error = Error;
+      type Error = TransformError;
 
-      fn try_from(proto_message: proto::Insert) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::Insert) -> Result<Self, TransformError> {
         let proto::Insert { contents } = proto_message.clone();
         let contents = contents.ok_or_else(|| {
-          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "contents",
             format!("{:?}", proto_message),
           ))
@@ -192,12 +206,12 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::Delete> for Delete {
-      type Error = Error;
+      type Error = TransformError;
 
-      fn try_from(proto_message: proto::Delete) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::Delete) -> Result<Self, TransformError> {
         let proto::Delete { distance } = proto_message.clone();
         let distance = distance.ok_or_else(|| {
-          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "distance",
             format!("{:?}", proto_message),
           ))
@@ -224,12 +238,12 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::Point> for Point {
-      type Error = Error;
+      type Error = TransformError;
 
-      fn try_from(proto_message: proto::Point) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::Point) -> Result<Self, TransformError> {
         let proto::Point { code_point_index } = proto_message.clone();
         let code_point_index = code_point_index.ok_or_else(|| {
-          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "code_point_index",
             format!("{:?}", proto_message),
           ))
@@ -256,20 +270,20 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::Edit> for Edit {
-      type Error = Error;
+      type Error = TransformError;
 
-      fn try_from(proto_message: proto::Edit) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::Edit) -> Result<Self, TransformError> {
         let proto::Edit { point, payload } = proto_message.clone();
         let point: Point = point
           .ok_or_else(|| {
-            Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+            TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
               "point",
               format!("{:?}", proto_message),
             ))
           })?
           .try_into()?;
         let payload = payload.ok_or_else(|| {
-          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "payload",
             format!("{:?}", proto_message),
           ))
@@ -325,12 +339,12 @@ mod serde_impl {
     }
 
     impl TryFrom<proto::Transform> for Transform {
-      type Error = Error;
+      type Error = TransformError;
 
-      fn try_from(proto_message: proto::Transform) -> Result<Self, Error> {
+      fn try_from(proto_message: proto::Transform) -> Result<Self, TransformError> {
         let proto::Transform { r#type } = proto_message.clone();
         let r#type = r#type.ok_or_else(|| {
-          Error::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "type",
             format!("{:?}", proto_message),
           ))
