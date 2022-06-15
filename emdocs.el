@@ -82,8 +82,9 @@
   `(:op (:source ,source :transform (:type (:edit ,transform)))))
 
 (defun emdocs--write-stdin (x)
-  (let ((line (format "%s\n" (json-encode x))))
-    (process-send-string emdocs--process-name line)))
+  (when (process-live-p (get-process emdocs--process-name))
+    (let ((line (format "%s\n" (json-encode x))))
+      (process-send-string emdocs--process-name line))))
 
 (defun emdocs--make-process ()
   (make-process
@@ -94,16 +95,17 @@
    :stderr (get-buffer-create emdocs--error-buffer-name)))
 
 (defun emdocs--after-change-function (beg end prev-length)
-  (let ((source (emdocs--create-buffer-id emdocs-buffer-id))
-        (point (emdocs--create-point beg)))
-    (->> (cond ((zerop prev-length)
-                (->> (buffer-substring-no-properties beg end)
-                     (emdocs--create-insert point)))
-               ((= beg end)
-                (emdocs--create-delete point prev-length))
-               (t (error "should never get here")))
-         (emdocs--create-edit source)
-         (emdocs--write-stdin))))
+  (when emdocs-mode
+    (let ((source (emdocs--create-buffer-id emdocs-buffer-id))
+          (point (emdocs--create-point beg)))
+      (->> (cond ((zerop prev-length)
+                  (->> (buffer-substring-no-properties beg end)
+                       (emdocs--create-insert point)))
+                 ((= beg end)
+                  (emdocs--create-delete point prev-length))
+                 (t (error "should never get here")))
+           (emdocs--create-edit source)
+           (emdocs--write-stdin)))))
 
 (defun emdocs--before-change-function (beg end)
   ;; TODO: set up undo list, etc
@@ -114,6 +116,10 @@
     (setq-local emdocs-buffer-id (uuid-string)))
   (add-hook 'after-change-functions #'emdocs--after-change-function)
   (add-hook 'before-change-functions #'emdocs--before-change-function))
+
+(defun emdocs--unset-change-hooks ()
+  (remove-hook 'after-change-functions #'emdocs--after-change-function)
+  (remove-hook 'before-change-functions #'emdocs--before-change-function))
 
 
 ;; Interactive
@@ -130,6 +136,7 @@
         (unless (process-live-p (get-process emdocs--process-name))
           (emdocs--make-process))
         t)
+    (emdocs--unset-change-hooks)
     nil))
 
 (provide 'emdocs)
