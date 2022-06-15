@@ -33,3 +33,11 @@ pub mod p2p;
 pub mod transforms;
 
 pub use error::Error;
+
+#[cfg(test)]
+pub mod proptest_strategies {
+  use proptest::{prelude::*, strategy::Strategy};
+  use uuid::Uuid;
+
+  pub fn new_uuid() -> impl Strategy<Value=Uuid> { Just(Uuid::new_v4()) }
+}

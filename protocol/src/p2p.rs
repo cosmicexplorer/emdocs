@@ -64,7 +64,7 @@ impl Default for P2pMessageID {
 #[cfg(test)]
 pub mod proptest_strategies {
   use super::*;
-  use crate::buffers::proptest_strategies::*;
+  use crate::proptest_strategies::*;
 
   use proptest::prelude::*;
 

@@ -79,10 +79,9 @@ impl Default for BufferId {
 #[cfg(test)]
 pub mod proptest_strategies {
   use super::*;
+  use crate::proptest_strategies::*;
 
-  use proptest::{prelude::*, strategy::Strategy};
-
-  pub fn new_uuid() -> impl Strategy<Value=Uuid> { Just(Uuid::new_v4()) }
+  use proptest::prelude::*;
 
   prop_compose! {
     pub fn new_buffer_id()(uuid in new_uuid()) -> BufferId {
