@@ -22,11 +22,6 @@ message OperationResult {
   }
 }
 
-/* A universe that receives effects. */
-service OperationService {
-  rpc ProcessOperation (Operation) returns (OperationResult);
-}
-
 message RemoteClient {
   optional string ip_address = 1;
 }
@@ -49,10 +44,6 @@ message OkResult {}
 message ClientMessage {
   oneof type {
     OkResult ok = 1;
+    Operation op = 2;
   }
-}
-
-/* A conversation between the client and an IDE. */
-service IDEService {
-  rpc ProcessIDEMessage (IDEMessage) returns (ClientMessage);
 }

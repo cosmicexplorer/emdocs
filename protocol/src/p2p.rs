@@ -33,7 +33,8 @@ pub mod proto {
 
 use crate::messages;
 
-use async_mutex::Mutex;
+use async_lock::{Mutex, RwLock};
+use bloomfilter::Bloom;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -84,14 +85,40 @@ pub struct P2pSendResult {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct P2pReceiveParams {}
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct P2pReceiveResult {
+  pub messages: Vec<P2pMessage>,
+}
+
 #[tonic::async_trait]
 pub trait P2p {
   async fn propagate(&self, msg: P2pMessage) -> Result<P2pSendResult, P2pError>;
-  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pMessage, P2pError>;
+  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pReceiveResult, P2pError>;
 }
 
 #[derive(Clone)]
-pub struct P2pService;
+pub struct P2pService {
+  seen: Arc<RwLock<Bloom<P2pMessageId>>>,
+}
+
+impl P2pService {
+  fn from_bloom(bloom: Bloom<P2pMessageId>) -> Self {
+    Self {
+      seen: Arc::new(RwLock::new(bloom)),
+    }
+  }
+
+  pub fn new() -> Self {
+    /* FIXME: make these less arbitrary (along with the use of a bloom filter in itself)! */
+    let estimated_max_items_count = 10000;
+    let estimated_false_positive_rate = 0.001;
+    let bloom = Bloom::<P2pMessageId>::new_for_fp_rate(
+      estimated_max_items_count,
+      estimated_false_positive_rate,
+    );
+    Self::from_bloom(bloom)
+  }
+}
 
 #[tonic::async_trait]
 impl proto::p2p_server::P2p for P2pService {
@@ -99,27 +126,35 @@ impl proto::p2p_server::P2p for P2pService {
     &self,
     request: tonic::Request<proto::P2pMessage>,
   ) -> Result<tonic::Response<proto::P2pSendResult>, tonic::Status> {
+    dbg!(request.metadata());
     let request: P2pMessage = request
       .into_inner()
       .try_into()
       .expect("failed to convert p2p proto request");
-    dbg!(request);
-    let response = P2pSendResult {};
-    let response: proto::P2pSendResult = response.into();
-    Ok(tonic::Response::new(response))
+    dbg!(&request);
+    /* If we've seen the id before, don't propagate it! */
+    if self.seen.write().await.check_and_set(&request.id) {
+      let response = P2pSendResult {};
+      let response: proto::P2pSendResult = response.into();
+      Ok(tonic::Response::new(response))
+    } else {
+      todo!("idk");
+    }
   }
 
   async fn receive(
     &self,
     request: tonic::Request<proto::P2pReceiveParams>,
-  ) -> Result<tonic::Response<proto::P2pMessage>, tonic::Status> {
+  ) -> Result<tonic::Response<proto::P2pReceiveResult>, tonic::Status> {
     let request: P2pReceiveParams = request
       .into_inner()
       .try_into()
       .expect("failed to convert p2p receive params proto request");
-    let response: P2pMessage = todo!("idk2");
-    let response: proto::P2pMessage = response.into();
-    Ok(tonic::Response::new(response))
+    dbg!(&request);
+    todo!("idk2")
+    /* let response: P2pMessage = todo!("idk2"); */
+    /* let response: proto::P2pMessage = response.into(); */
+    /* Ok(tonic::Response::new(response)) */
   }
 }
 
@@ -146,23 +181,25 @@ impl P2p for P2pClient {
   async fn propagate(&self, msg: P2pMessage) -> Result<P2pSendResult, P2pError> {
     dbg!(&msg);
     let msg: proto::P2pMessage = msg.into();
+    let mut request = tonic::Request::new(msg);
+    let metadata = request.metadata_mut();
     let result: P2pSendResult = self
       .client
       .lock()
       .await
       /* TODO: Annoying that this is generated as an constrained impl method over the generic client
        * type, not related to the generated server trait (makes it hard to use in generic code). */
-      .propagate(msg)
+      .propagate(request)
       .await?
       .into_inner()
       .try_into()?;
     Ok(result)
   }
 
-  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pMessage, P2pError> {
+  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pReceiveResult, P2pError> {
     dbg!(&params);
     let params: proto::P2pReceiveParams = params.into();
-    let msg: P2pMessage = self
+    let result: P2pReceiveResult = self
       .client
       .lock()
       .await
@@ -170,7 +207,7 @@ impl P2p for P2pClient {
       .await?
       .into_inner()
       .try_into()?;
-    Ok(msg)
+    Ok(result)
   }
 }
 
@@ -379,6 +416,35 @@ mod serde_impl {
 
     impl From<P2pReceiveParams> for proto::P2pReceiveParams {
       fn from(value: P2pReceiveParams) -> Self { Self {} }
+    }
+  }
+
+  mod p2p_receive_result {
+    use super::*;
+
+    impl serde_mux::Schema for proto::P2pReceiveResult {
+      type Source = P2pReceiveResult;
+    }
+
+    impl TryFrom<proto::P2pReceiveResult> for P2pReceiveResult {
+      type Error = P2pError;
+
+      fn try_from(proto_message: proto::P2pReceiveResult) -> Result<Self, P2pError> {
+        let proto::P2pReceiveResult { messages } = proto_message.clone();
+        let messages: Vec<P2pMessage> = messages
+          .into_iter()
+          .map(|x| x.try_into())
+          .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { messages })
+      }
+    }
+
+    impl From<P2pReceiveResult> for proto::P2pReceiveResult {
+      fn from(value: P2pReceiveResult) -> Self {
+        let P2pReceiveResult { messages } = value;
+        let messages: Vec<proto::P2pMessage> = messages.into_iter().map(|x| x.into()).collect();
+        Self { messages }
+      }
     }
   }
 }

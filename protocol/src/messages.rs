@@ -64,6 +64,8 @@ use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use std::io;
+
 #[derive(Debug, Display, Error)]
 pub enum ProtocolError {
   /// tonic error: {0}
@@ -74,6 +76,10 @@ pub enum ProtocolError {
   Transform(#[from] TransformError),
   /// an error {0} occurred when en/decoding a protobuf
   Proto(#[from] serde_mux::ProtobufCodingFailure),
+  /// io error {0}
+  Io(#[from] io::Error),
+  /// json error {0}
+  Json(#[from] serde_json::Error),
 }
 
 impl From<prost::DecodeError> for ProtocolError {
@@ -120,33 +126,16 @@ pub struct BufferAssociation {
 #[allow(non_camel_case_types)]
 pub enum ClientMessage {
   ok,
+  op(Operation),
 }
 
+/* A universe that receives effects. */
 #[tonic::async_trait]
 pub trait OperationService {
   async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError>;
 }
 
-#[derive(Clone)]
-pub struct OperationServiceClient {
-  pub p2p_client: p2p::P2pClient,
-}
-
-#[tonic::async_trait]
-impl OperationService for OperationServiceClient {
-  async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError> {
-    self
-      .p2p_client
-      .propagate(p2p::P2pMessage {
-        id: p2p::P2pMessageId::default(),
-        op: request,
-      })
-      .await
-      .expect("FIXME: couldn't auto convert error type");
-    Ok(OperationResult::ok)
-  }
-}
-
+/* A conversation between the client and an IDE. */
 #[tonic::async_trait]
 pub trait IDEService {
   async fn process_ide_message(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError>;
@@ -427,6 +416,7 @@ mod serde_impl {
         })?;
         match r#type {
           proto::client_message::Type::Ok(_) => Ok(Self::ok),
+          proto::client_message::Type::Op(op) => Ok(Self::op(op.try_into()?)),
         }
       }
     }
@@ -436,6 +426,9 @@ mod serde_impl {
         match value {
           ClientMessage::ok => Self {
             r#type: Some(proto::client_message::Type::Ok(proto::OkResult {})),
+          },
+          ClientMessage::op(op) => Self {
+            r#type: Some(proto::client_message::Type::Op(op.into())),
           },
         }
       }

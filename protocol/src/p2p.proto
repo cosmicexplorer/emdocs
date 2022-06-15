@@ -20,9 +20,13 @@ message P2pMessage {
 
 message P2pSendResult {}
 
+message P2pReceiveResult {
+  repeated P2pMessage messages = 1;
+}
+
 message P2pReceiveParams {}
 
 service P2p {
   rpc Propagate(P2pMessage) returns (P2pSendResult);
-  rpc Receive(P2pReceiveParams) returns (P2pMessage);
+  rpc Receive(P2pReceiveParams) returns (P2pReceiveResult);
 }
