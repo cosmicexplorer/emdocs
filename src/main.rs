@@ -60,7 +60,7 @@ enum Action {
   Interact,
 }
 
-/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- interact | jq | sponge */
+/* echo '{"link": {"buffer_id": {"uuid": "bfbb5e5f7e474018a42b0664e6fdb6c9"}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":"bfbb5e5f7e474018a42b0664e6fdb6c9"}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- interact | jq | sponge */
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let Opts { action, port } = Opts::parse();

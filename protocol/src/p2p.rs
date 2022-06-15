@@ -349,7 +349,7 @@ mod serde_impl {
       fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
       where S: Serializer {
         let mut buffer_id = serializer.serialize_struct("P2pMessageId", 1)?;
-        buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
+        buffer_id.serialize_field("uuid", &self.uuid.hyphenated().to_string())?;
         buffer_id.end()
       }
     }
@@ -365,10 +365,10 @@ mod serde_impl {
 
       fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
       where A: MapAccess<'de> {
-        let (k, v): (String, Vec<u8>) = map.next_entry()?.expect("uuid key must exist");
+        let (k, v): (String, String) = map.next_entry()?.expect("uuid key must exist");
         assert_eq!(k, "uuid");
         Ok(P2pMessageId {
-          uuid: Uuid::from_bytes(v.try_into().expect("uuid bytes wrong length")),
+          uuid: Uuid::parse_str(&v).expect("uuid parsing failed"),
         })
       }
     }
@@ -443,7 +443,7 @@ mod serde_impl {
       fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
       where S: Serializer {
         let mut buffer_id = serializer.serialize_struct("P2pParticipantId", 1)?;
-        buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
+        buffer_id.serialize_field("uuid", &self.uuid.hyphenated().to_string())?;
         buffer_id.end()
       }
     }
@@ -459,10 +459,10 @@ mod serde_impl {
 
       fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
       where A: MapAccess<'de> {
-        let (k, v): (String, Vec<u8>) = map.next_entry()?.expect("uuid key must exist");
+        let (k, v): (String, String) = map.next_entry()?.expect("uuid key must exist");
         assert_eq!(k, "uuid");
         Ok(P2pParticipantId {
-          uuid: Uuid::from_bytes(v.try_into().expect("uuid bytes wrong length")),
+          uuid: Uuid::parse_str(&v).expect("uuid parsing failed"),
         })
       }
     }
