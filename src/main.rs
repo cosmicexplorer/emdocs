@@ -27,7 +27,7 @@
 
 use emdocs_protocol::{
   buffers,
-  messages::{self, IDEService},
+  messages::{self, IDEService, OperationService},
   p2p::{self, P2p},
   transforms,
 };
@@ -65,43 +65,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   match action {
     Action::Interact => {
       let p2p_client = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?;
-      p2p_client
-        .propagate(p2p::P2pMessage {
-          id: p2p::P2pMessageId::default(),
-          op: messages::Operation {
-            source: buffers::BufferId::default(),
-            transform: transforms::Transform {
-              r#type: transforms::TransformType::edit(transforms::Edit {
-                point: transforms::Point::default(),
-                payload: transforms::EditPayload::insert(transforms::Insert {
-                  contents: "aaa".to_string(),
-                }),
-              }),
-            },
-          },
-        })
-        .await?;
-
-      struct OS;
-      #[tonic::async_trait]
-      impl messages::OperationService for OS {
-        async fn process_operation(
-          &self,
-          request: messages::Operation,
-        ) -> Result<messages::OperationResult, messages::ProtocolError> {
-          eprintln!("do nothing with operation {:?}", request);
-          Ok(messages::OperationResult::ok)
-        }
-      }
-
-      let ide_service = messages::IDEServiceClient::from_client(OS);
+      let op_client = messages::OperationServiceClient { p2p_client };
 
       /* TODO: The IDE's VFS is an OperationService!!! */
 
       /* Hook up stdio to an instance of an IDEService by JSON encoding lines. */
       for line in io::stdin().lock().lines() {
         let ide_msg: messages::IDEMessage = serde_json::from_str(&line?)?;
-        let client_msg = ide_service.process_ide_message(ide_msg).await?;
+        let client_msg = match ide_msg {
+          messages::IDEMessage::op(op) => {
+            let result = op_client.process_operation(op).await?;
+            dbg!(result);
+            messages::ClientMessage::ok
+          },
+          messages::IDEMessage::link(link) => {
+            eprintln!("do nothing with link {:?}", link);
+            messages::ClientMessage::ok
+          },
+        };
         let mut client_msg: Vec<u8> = serde_json::to_vec(&client_msg)?;
         /* Ensure we have clear lines between entries in stdout. */
         client_msg.push(b'\n');

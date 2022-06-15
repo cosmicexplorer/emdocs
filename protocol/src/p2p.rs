@@ -104,7 +104,7 @@ impl proto::p2p_server::P2p for P2pService {
       .try_into()
       .expect("failed to convert p2p proto request");
     dbg!(request);
-    let response: P2pSendResult = todo!("idk");
+    let response = P2pSendResult {};
     let response: proto::P2pSendResult = response.into();
     Ok(tonic::Response::new(response))
   }

@@ -56,6 +56,7 @@ pub mod proto {
 
 use crate::{
   buffers::{BufferError, BufferId},
+  p2p::{self, P2p},
   transforms::{Transform, TransformError},
 };
 
@@ -126,36 +127,29 @@ pub trait OperationService {
   async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError>;
 }
 
+#[derive(Clone)]
+pub struct OperationServiceClient {
+  pub p2p_client: p2p::P2pClient,
+}
+
+#[tonic::async_trait]
+impl OperationService for OperationServiceClient {
+  async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError> {
+    self
+      .p2p_client
+      .propagate(p2p::P2pMessage {
+        id: p2p::P2pMessageId::default(),
+        op: request,
+      })
+      .await
+      .expect("FIXME: couldn't auto convert error type");
+    Ok(OperationResult::ok)
+  }
+}
+
 #[tonic::async_trait]
 pub trait IDEService {
   async fn process_ide_message(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError>;
-}
-
-#[derive(Clone)]
-pub struct IDEServiceClient<OS> {
-  op_dispatcher: OS,
-}
-
-impl<OS> IDEServiceClient<OS> {
-  pub fn from_client(op_dispatcher: OS) -> Self { Self { op_dispatcher } }
-}
-
-#[tonic::async_trait]
-impl<OS: OperationService+Send+Sync> IDEService for IDEServiceClient<OS> {
-  async fn process_ide_message(&self, request: IDEMessage) -> Result<ClientMessage, ProtocolError> {
-    let client_msg = match request {
-      IDEMessage::op(op) => {
-        let result = self.op_dispatcher.process_operation(op).await?;
-        dbg!(result);
-        ClientMessage::ok
-      },
-      IDEMessage::link(link) => {
-        eprintln!("do nothing with link {:?}", link);
-        ClientMessage::ok
-      },
-    };
-    Ok(client_msg)
-  }
 }
 
 #[cfg(test)]
