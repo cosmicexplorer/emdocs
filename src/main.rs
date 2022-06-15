@@ -35,7 +35,10 @@ use emdocs_protocol::{
 use clap::{Parser, Subcommand};
 use serde_json;
 
-use std::io::{self, BufRead, Write};
+use std::{
+  io::{self, BufRead, Write},
+  thread, time,
+};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -94,12 +97,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
       /* Write every operation *received from p2p* to stdout as a JSON encoded ClientMessage. */
       let p2p2 = p2p_client.clone();
+      /* Process p2p events in a background thread. */
       tokio::spawn(async move {
-        while let Ok(p2p::P2pReceiveResult { messages }) =
-          p2p2.receive(p2p::P2pReceiveParams {}).await
+        while let Ok(p2p::P2pReceiveResult { messages }) = p2p2.receive(p2p2.receive_params()).await
         {
-          for p2p::P2pMessage { op, id } in messages.into_iter() {
-            dbg!(id);
+          for p2p::P2pMessage {
+            op,
+            msg_id,
+            user_id,
+          } in messages.into_iter()
+          {
+            dbg!(msg_id);
+            dbg!(user_id);
             assert_eq!(
               messages::OperationResult::ok,
               OS.process_operation(op)
@@ -115,14 +124,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ide_msg: messages::IDEMessage = serde_json::from_str(&line?)?;
         let client_msg = match ide_msg {
           messages::IDEMessage::op(op) => {
+            dbg!(&op);
+            /* Propagate the message to the rest of the swarm. */
             assert_eq!(
               p2p::P2pSendResult {},
               p2p_client
                 .propagate(p2p::P2pMessage {
-                  id: p2p::P2pMessageId::default(),
+                  msg_id: p2p::P2pMessageId::default(),
+                  user_id: p2p_client.receive_params().user_id,
                   op: op.clone(),
                 })
-                .await?
+                .await?,
             );
             messages::ClientMessage::ok
           },
@@ -133,6 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         assert_eq!(messages::ClientMessage::ok, client_msg);
       }
+
+      thread::sleep(time::Duration::from_millis(2000));
     },
   }
 

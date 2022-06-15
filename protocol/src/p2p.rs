@@ -33,9 +33,11 @@ pub mod proto {
 
 use crate::messages;
 
+use async_channel;
 use async_lock::{Mutex, RwLock};
 use bloomfilter::Bloom;
 use displaydoc::Display;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -73,9 +75,23 @@ impl Default for P2pMessageId {
   }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct P2pParticipantId {
+  pub uuid: Uuid,
+}
+
+impl Default for P2pParticipantId {
+  fn default() -> Self {
+    Self {
+      uuid: Uuid::new_v4(),
+    }
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct P2pMessage {
-  pub id: P2pMessageId,
+  pub msg_id: P2pMessageId,
+  pub user_id: P2pParticipantId,
   pub op: messages::Operation,
 }
 
@@ -83,7 +99,9 @@ pub struct P2pMessage {
 pub struct P2pSendResult {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct P2pReceiveParams {}
+pub struct P2pReceiveParams {
+  pub user_id: P2pParticipantId,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct P2pReceiveResult {
@@ -99,12 +117,19 @@ pub trait P2p {
 #[derive(Clone)]
 pub struct P2pService {
   seen: Arc<RwLock<Bloom<P2pMessageId>>>,
+  mailboxes: Arc<RwLock<IndexMap<P2pParticipantId, Vec<P2pMessage>>>>,
+  condvar_sender: async_channel::Sender<()>,
+  condvar_receiver: async_channel::Receiver<()>,
 }
 
 impl P2pService {
   fn from_bloom(bloom: Bloom<P2pMessageId>) -> Self {
+    let (condvar_sender, condvar_receiver) = async_channel::unbounded();
     Self {
       seen: Arc::new(RwLock::new(bloom)),
+      mailboxes: Arc::new(RwLock::new(IndexMap::new())),
+      condvar_sender,
+      condvar_receiver,
     }
   }
 
@@ -133,13 +158,23 @@ impl proto::p2p_server::P2p for P2pService {
       .expect("failed to convert p2p proto request");
     dbg!(&request);
     /* If we've seen the id before, don't propagate it! */
-    if self.seen.write().await.check_and_set(&request.id) {
-      let response = P2pSendResult {};
-      let response: proto::P2pSendResult = response.into();
-      Ok(tonic::Response::new(response))
-    } else {
-      todo!("idk");
+    if !self.seen.write().await.check_and_set(&request.msg_id) {
+      for (recipient_id, mailbox) in self.mailboxes.write().await.iter_mut() {
+        /* Do not propagate it to ourself. */
+        if recipient_id != &request.user_id {
+          mailbox.push(request.clone());
+          /* Wake up any recipients waiting on a receive call! */
+          self
+            .condvar_sender
+            .send(())
+            .await
+            .expect("channel should be open");
+        }
+      }
     }
+    let response = P2pSendResult {};
+    let response: proto::P2pSendResult = response.into();
+    Ok(tonic::Response::new(response))
   }
 
   async fn receive(
@@ -151,28 +186,58 @@ impl proto::p2p_server::P2p for P2pService {
       .try_into()
       .expect("failed to convert p2p receive params proto request");
     dbg!(&request);
-    todo!("idk2")
-    /* let response: P2pMessage = todo!("idk2"); */
-    /* let response: proto::P2pMessage = response.into(); */
-    /* Ok(tonic::Response::new(response)) */
+
+    /* Try getting any messages, and waiting for a channel flag if none are yet found. */
+    loop {
+      let messages: Vec<proto::P2pMessage> = self
+        .mailboxes
+        .write()
+        .await
+        .entry(request.user_id)
+        .or_insert_with(Vec::new)
+        .drain(..)
+        .map(|x| x.into())
+        .collect();
+      if messages.is_empty() {
+        /* Wait for a channel flag in order to try again. */
+        let () = self
+          .condvar_receiver
+          .recv()
+          .await
+          .expect("should never fail");
+      } else {
+        /* We've finally found some messages, let's return. */
+        let response = proto::P2pReceiveResult { messages };
+        return Ok(tonic::Response::new(response));
+      }
+    }
   }
 }
 
 #[derive(Clone)]
 pub struct P2pClient {
-  client: Arc<Mutex<proto::p2p_client::P2pClient<tonic::transport::Channel>>>,
+  user_id: P2pParticipantId,
+  client: proto::p2p_client::P2pClient<tonic::transport::Channel>,
 }
 
 impl P2pClient {
-  fn from_client(client: proto::p2p_client::P2pClient<tonic::transport::Channel>) -> Self {
-    Self {
-      client: Arc::new(Mutex::new(client)),
-    }
+  fn from_client(
+    user_id: P2pParticipantId,
+    client: proto::p2p_client::P2pClient<tonic::transport::Channel>,
+  ) -> Self {
+    Self { user_id, client }
   }
 
   pub async fn connect(address: String) -> Result<Self, tonic::transport::Error> {
     let client = proto::p2p_client::P2pClient::connect(address).await?;
-    Ok(Self::from_client(client))
+    let user_id = P2pParticipantId::default();
+    Ok(Self::from_client(user_id, client))
+  }
+
+  pub fn receive_params(&self) -> P2pReceiveParams {
+    P2pReceiveParams {
+      user_id: self.user_id,
+    }
   }
 }
 
@@ -181,15 +246,12 @@ impl P2p for P2pClient {
   async fn propagate(&self, msg: P2pMessage) -> Result<P2pSendResult, P2pError> {
     dbg!(&msg);
     let msg: proto::P2pMessage = msg.into();
-    let mut request = tonic::Request::new(msg);
-    let metadata = request.metadata_mut();
     let result: P2pSendResult = self
       .client
-      .lock()
-      .await
+      .clone()
       /* TODO: Annoying that this is generated as an constrained impl method over the generic client
        * type, not related to the generated server trait (makes it hard to use in generic code). */
-      .propagate(request)
+      .propagate(msg)
       .await?
       .into_inner()
       .try_into()?;
@@ -201,8 +263,7 @@ impl P2p for P2pClient {
     let params: proto::P2pReceiveParams = params.into();
     let result: P2pReceiveResult = self
       .client
-      .lock()
-      .await
+      .clone()
       .receive(params)
       .await?
       .into_inner()
@@ -237,17 +298,18 @@ mod serde_impl {
 
   use serde_mux;
 
-  use std::convert::{TryFrom, TryInto};
+  use serde::{
+    de::{Deserialize, Deserializer, MapAccess, Visitor},
+    ser::{Serialize, SerializeStruct, Serializer},
+  };
+
+  use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+  };
 
   mod p2p_message_id {
     use super::*;
-
-    use serde::{
-      de::{Deserialize, Deserializer, MapAccess, Visitor},
-      ser::{Serialize, SerializeStruct, Serializer},
-    };
-
-    use std::fmt;
 
     impl serde_mux::Schema for proto::P2pMessageId {
       type Source = P2pMessageId;
@@ -340,6 +402,100 @@ mod serde_impl {
     }
   }
 
+  mod p2p_participant_id {
+    use super::*;
+
+    impl serde_mux::Schema for proto::P2pParticipantId {
+      type Source = P2pParticipantId;
+    }
+
+    impl TryFrom<proto::P2pParticipantId> for P2pParticipantId {
+      type Error = P2pError;
+
+      fn try_from(proto_message: proto::P2pParticipantId) -> Result<Self, P2pError> {
+        let proto::P2pParticipantId { uuid } = proto_message.clone();
+        let uuid: [u8; 16] = uuid
+          .ok_or_else(|| {
+            P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "uuid",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()
+          .map_err(|e| serde_mux::ProtobufCodingFailure::SliceLength(16, format!("{:?}", e)))?;
+        Ok(Self {
+          uuid: Uuid::from_bytes(uuid),
+        })
+      }
+    }
+
+    impl From<P2pParticipantId> for proto::P2pParticipantId {
+      fn from(value: P2pParticipantId) -> Self {
+        let P2pParticipantId { uuid } = value;
+        proto::P2pParticipantId {
+          uuid: Some(uuid.as_bytes().to_vec()),
+        }
+      }
+    }
+
+
+    impl Serialize for P2pParticipantId {
+      fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+      where S: Serializer {
+        let mut buffer_id = serializer.serialize_struct("P2pParticipantId", 1)?;
+        buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
+        buffer_id.end()
+      }
+    }
+
+    struct P2pParticipantIDVisitor;
+
+    impl<'de> Visitor<'de> for P2pParticipantIDVisitor {
+      type Value = P2pParticipantId;
+
+      fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "A p2p participant id")
+      }
+
+      fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+      where A: MapAccess<'de> {
+        let (k, v): (String, Vec<u8>) = map.next_entry()?.expect("uuid key must exist");
+        assert_eq!(k, "uuid");
+        Ok(P2pParticipantId {
+          uuid: Uuid::from_bytes(v.try_into().expect("uuid bytes wrong length")),
+        })
+      }
+    }
+
+    impl<'de> Deserialize<'de> for P2pParticipantId {
+      fn deserialize<D>(deserializer: D) -> Result<P2pParticipantId, D::Error>
+      where D: Deserializer<'de> {
+        deserializer.deserialize_struct("P2pParticipantId", &["uuid"], P2pParticipantIDVisitor)
+      }
+    }
+
+    #[cfg(test)]
+    mod test {
+      use super::*;
+
+      use serde_mux::{Deserializer, Serializer};
+
+      use proptest::prelude::*;
+
+      proptest! {
+        #[test]
+        fn test_serde_p2p_id(p2p_id in new_p2p_id()) {
+          let protobuf =
+            serde_mux::Protobuf::<P2pParticipantId, proto::P2pParticipantId>::new(p2p_id.clone());
+          let buf: Box<[u8]> = protobuf.serialize();
+          let resurrected =
+            serde_mux::Protobuf::<P2pParticipantId, proto::P2pParticipantId>::deserialize(&buf).unwrap();
+          prop_assert_eq!(p2p_id, resurrected);
+        }
+      }
+    }
+  }
+
   mod p2p_message {
     use super::*;
 
@@ -351,11 +507,23 @@ mod serde_impl {
       type Error = P2pError;
 
       fn try_from(proto_message: proto::P2pMessage) -> Result<Self, P2pError> {
-        let proto::P2pMessage { id, op } = proto_message.clone();
-        let id: P2pMessageId = id
+        let proto::P2pMessage {
+          msg_id,
+          user_id,
+          op,
+        } = proto_message.clone();
+        let msg_id: P2pMessageId = msg_id
           .ok_or_else(|| {
             P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
-              "id",
+              "msg_id",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        let user_id: P2pParticipantId = user_id
+          .ok_or_else(|| {
+            P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "user_id",
               format!("{:?}", proto_message),
             ))
           })?
@@ -368,15 +536,24 @@ mod serde_impl {
             ))
           })?
           .try_into()?;
-        Ok(Self { id, op })
+        Ok(Self {
+          msg_id,
+          user_id,
+          op,
+        })
       }
     }
 
     impl From<P2pMessage> for proto::P2pMessage {
       fn from(value: P2pMessage) -> Self {
-        let P2pMessage { id, op } = value;
+        let P2pMessage {
+          msg_id,
+          user_id,
+          op,
+        } = value;
         Self {
-          id: Some(id.into()),
+          msg_id: Some(msg_id.into()),
+          user_id: Some(user_id.into()),
           op: Some(op.into()),
         }
       }
@@ -411,11 +588,27 @@ mod serde_impl {
     impl TryFrom<proto::P2pReceiveParams> for P2pReceiveParams {
       type Error = P2pError;
 
-      fn try_from(proto_message: proto::P2pReceiveParams) -> Result<Self, P2pError> { Ok(Self {}) }
+      fn try_from(proto_message: proto::P2pReceiveParams) -> Result<Self, P2pError> {
+        let proto::P2pReceiveParams { user_id } = proto_message.clone();
+        let user_id: P2pParticipantId = user_id
+          .ok_or_else(|| {
+            P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "user_id",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        Ok(Self { user_id })
+      }
     }
 
     impl From<P2pReceiveParams> for proto::P2pReceiveParams {
-      fn from(value: P2pReceiveParams) -> Self { Self {} }
+      fn from(value: P2pReceiveParams) -> Self {
+        let P2pReceiveParams { user_id } = value;
+        Self {
+          user_id: Some(user_id.into()),
+        }
+      }
     }
   }
 

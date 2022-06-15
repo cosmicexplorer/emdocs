@@ -13,9 +13,14 @@ message P2pMessageId {
   optional bytes uuid = 1;
 }
 
+message P2pParticipantId {
+  optional bytes uuid = 1;
+}
+
 message P2pMessage {
-  optional P2pMessageId id = 1;
-  optional emdocs.proto.messages.Operation op = 2;
+  optional P2pMessageId msg_id = 1;
+  optional P2pParticipantId user_id = 2;
+  optional emdocs.proto.messages.Operation op = 3;
 }
 
 message P2pSendResult {}
@@ -24,7 +29,9 @@ message P2pReceiveResult {
   repeated P2pMessage messages = 1;
 }
 
-message P2pReceiveParams {}
+message P2pReceiveParams {
+  optional P2pParticipantId user_id = 1;
+}
 
 service P2p {
   rpc Propagate(P2pMessage) returns (P2pSendResult);
