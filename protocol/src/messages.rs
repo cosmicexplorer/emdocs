@@ -118,7 +118,6 @@ pub struct BufferAssociation {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
 pub enum ClientMessage {
-  result(OperationResult),
   ok,
 }
 
@@ -147,7 +146,8 @@ impl<OS: OperationService+Send+Sync> IDEService for IDEServiceClient<OS> {
     let client_msg = match request {
       IDEMessage::op(op) => {
         let result = self.op_dispatcher.process_operation(op).await?;
-        ClientMessage::result(result.into())
+        dbg!(result);
+        ClientMessage::ok
       },
       IDEMessage::link(link) => {
         eprintln!("do nothing with link {:?}", link);
@@ -432,7 +432,6 @@ mod serde_impl {
           ))
         })?;
         match r#type {
-          proto::client_message::Type::Result(result) => Ok(Self::result(result.try_into()?)),
           proto::client_message::Type::Ok(_) => Ok(Self::ok),
         }
       }
@@ -441,9 +440,6 @@ mod serde_impl {
     impl From<ClientMessage> for proto::ClientMessage {
       fn from(value: ClientMessage) -> Self {
         match value {
-          ClientMessage::result(result) => Self {
-            r#type: Some(proto::client_message::Type::Result(result.into())),
-          },
           ClientMessage::ok => Self {
             r#type: Some(proto::client_message::Type::Ok(proto::OkResult {})),
           },

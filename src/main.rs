@@ -26,8 +26,10 @@
 #![deny(clippy::all)]
 
 use emdocs_protocol::{
+  buffers,
   messages::{self, IDEService},
-  p2p,
+  p2p::{self, P2p},
+  transforms,
 };
 
 use clap::{Parser, Subcommand};
@@ -62,7 +64,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   match action {
     Action::Interact => {
-      /* let operation_service = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?; */
+      let p2p_client = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?;
+      p2p_client
+        .propagate(p2p::P2pMessage {
+          id: p2p::P2pMessageId::default(),
+          op: messages::Operation {
+            source: buffers::BufferId::default(),
+            transform: transforms::Transform {
+              r#type: transforms::TransformType::edit(transforms::Edit {
+                point: transforms::Point::default(),
+                payload: transforms::EditPayload::insert(transforms::Insert {
+                  contents: "aaa".to_string(),
+                }),
+              }),
+            },
+          },
+        })
+        .await?;
 
       struct OS;
       #[tonic::async_trait]

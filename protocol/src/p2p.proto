@@ -8,13 +8,13 @@ package emdocs.proto.p2p;
 import "messages.proto";
 
 /* A tag referring to a single message that should be propagated exactly once. */
-message P2pMessageID {
+message P2pMessageId {
   /* A unique id, typically a UUID v4. */
   optional bytes uuid = 1;
 }
 
 message P2pMessage {
-  optional P2pMessageID id = 1;
+  optional P2pMessageId id = 1;
   optional emdocs.proto.messages.Operation op = 2;
 }
 

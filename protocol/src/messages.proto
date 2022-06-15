@@ -48,8 +48,7 @@ message OkResult {}
 
 message ClientMessage {
   oneof type {
-    OperationResult result = 1;
-    OkResult ok = 2;
+    OkResult ok = 1;
   }
 }
 

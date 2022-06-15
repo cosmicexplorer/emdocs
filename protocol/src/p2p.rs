@@ -60,11 +60,11 @@ impl From<prost::EncodeError> for P2pError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct P2pMessageID {
+pub struct P2pMessageId {
   pub uuid: Uuid,
 }
 
-impl Default for P2pMessageID {
+impl Default for P2pMessageId {
   fn default() -> Self {
     Self {
       uuid: Uuid::new_v4(),
@@ -74,7 +74,7 @@ impl Default for P2pMessageID {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct P2pMessage {
-  pub id: P2pMessageID,
+  pub id: P2pMessageId,
   pub op: messages::Operation,
 }
 
@@ -103,6 +103,7 @@ impl proto::p2p_server::P2p for P2pService {
       .into_inner()
       .try_into()
       .expect("failed to convert p2p proto request");
+    dbg!(request);
     let response: P2pSendResult = todo!("idk");
     let response: proto::P2pSendResult = response.into();
     Ok(tonic::Response::new(response))
@@ -116,7 +117,7 @@ impl proto::p2p_server::P2p for P2pService {
       .into_inner()
       .try_into()
       .expect("failed to convert p2p receive params proto request");
-    let response: P2pMessage = todo!("idk");
+    let response: P2pMessage = todo!("idk2");
     let response: proto::P2pMessage = response.into();
     Ok(tonic::Response::new(response))
   }
@@ -181,8 +182,8 @@ pub mod proptest_strategies {
   use proptest::prelude::*;
 
   prop_compose! {
-    pub fn new_p2p_id()(uuid in new_uuid()) -> P2pMessageID {
-      P2pMessageID { uuid }
+    pub fn new_p2p_id()(uuid in new_uuid()) -> P2pMessageId {
+      P2pMessageId { uuid }
     }
   }
   prop_compose! {
@@ -212,10 +213,10 @@ mod serde_impl {
     use std::fmt;
 
     impl serde_mux::Schema for proto::P2pMessageId {
-      type Source = P2pMessageID;
+      type Source = P2pMessageId;
     }
 
-    impl TryFrom<proto::P2pMessageId> for P2pMessageID {
+    impl TryFrom<proto::P2pMessageId> for P2pMessageId {
       type Error = P2pError;
 
       fn try_from(proto_message: proto::P2pMessageId) -> Result<Self, P2pError> {
@@ -235,9 +236,9 @@ mod serde_impl {
       }
     }
 
-    impl From<P2pMessageID> for proto::P2pMessageId {
-      fn from(value: P2pMessageID) -> Self {
-        let P2pMessageID { uuid } = value;
+    impl From<P2pMessageId> for proto::P2pMessageId {
+      fn from(value: P2pMessageId) -> Self {
+        let P2pMessageId { uuid } = value;
         proto::P2pMessageId {
           uuid: Some(uuid.as_bytes().to_vec()),
         }
@@ -245,10 +246,10 @@ mod serde_impl {
     }
 
 
-    impl Serialize for P2pMessageID {
+    impl Serialize for P2pMessageId {
       fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
       where S: Serializer {
-        let mut buffer_id = serializer.serialize_struct("P2pMessageID", 1)?;
+        let mut buffer_id = serializer.serialize_struct("P2pMessageId", 1)?;
         buffer_id.serialize_field("uuid", &self.uuid.as_bytes())?;
         buffer_id.end()
       }
@@ -257,7 +258,7 @@ mod serde_impl {
     struct P2pMessageIDVisitor;
 
     impl<'de> Visitor<'de> for P2pMessageIDVisitor {
-      type Value = P2pMessageID;
+      type Value = P2pMessageId;
 
       fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "A p2p message id")
@@ -267,16 +268,16 @@ mod serde_impl {
       where A: MapAccess<'de> {
         let (k, v): (String, Vec<u8>) = map.next_entry()?.expect("uuid key must exist");
         assert_eq!(k, "uuid");
-        Ok(P2pMessageID {
+        Ok(P2pMessageId {
           uuid: Uuid::from_bytes(v.try_into().expect("uuid bytes wrong length")),
         })
       }
     }
 
-    impl<'de> Deserialize<'de> for P2pMessageID {
-      fn deserialize<D>(deserializer: D) -> Result<P2pMessageID, D::Error>
+    impl<'de> Deserialize<'de> for P2pMessageId {
+      fn deserialize<D>(deserializer: D) -> Result<P2pMessageId, D::Error>
       where D: Deserializer<'de> {
-        deserializer.deserialize_struct("P2pMessageID", &["uuid"], P2pMessageIDVisitor)
+        deserializer.deserialize_struct("P2pMessageId", &["uuid"], P2pMessageIDVisitor)
       }
     }
 
@@ -292,10 +293,10 @@ mod serde_impl {
         #[test]
         fn test_serde_p2p_id(p2p_id in new_p2p_id()) {
           let protobuf =
-            serde_mux::Protobuf::<P2pMessageID, proto::P2pMessageId>::new(p2p_id.clone());
+            serde_mux::Protobuf::<P2pMessageId, proto::P2pMessageId>::new(p2p_id.clone());
           let buf: Box<[u8]> = protobuf.serialize();
           let resurrected =
-            serde_mux::Protobuf::<P2pMessageID, proto::P2pMessageId>::deserialize(&buf).unwrap();
+            serde_mux::Protobuf::<P2pMessageId, proto::P2pMessageId>::deserialize(&buf).unwrap();
           prop_assert_eq!(p2p_id, resurrected);
         }
       }
@@ -314,7 +315,7 @@ mod serde_impl {
 
       fn try_from(proto_message: proto::P2pMessage) -> Result<Self, P2pError> {
         let proto::P2pMessage { id, op } = proto_message.clone();
-        let id: P2pMessageID = id
+        let id: P2pMessageId = id
           .ok_or_else(|| {
             P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
               "id",
