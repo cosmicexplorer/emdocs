@@ -22,6 +22,7 @@
 
 /// [`prost`] structs for serializing p2p messages.
 pub mod proto {
+  pub use crate::messages::proto as messages;
   #[doc(inline)]
   pub use proto::*;
   mod proto {
@@ -30,14 +31,24 @@ pub mod proto {
   }
 }
 
+use crate::messages;
+
+use async_mutex::Mutex;
 use displaydoc::Display;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+
+use std::sync::Arc;
 
 #[derive(Debug, Display, Error)]
 pub enum P2pError {
   /// protobuf error {0}
   Proto(#[from] serde_mux::ProtobufCodingFailure),
+  /// protocol error {0}
+  Protocol(#[from] messages::ProtocolError),
+  /// tonic error: {0}
+  Tonic(#[from] tonic::Status),
 }
 
 impl From<prost::DecodeError> for P2pError {
@@ -61,16 +72,122 @@ impl Default for P2pMessageID {
   }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct P2pMessage {
+  pub id: P2pMessageID,
+  pub op: messages::Operation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct P2pSendResult {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct P2pReceiveParams {}
+
+#[tonic::async_trait]
+pub trait P2p {
+  async fn propagate(&self, msg: P2pMessage) -> Result<P2pSendResult, P2pError>;
+  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pMessage, P2pError>;
+}
+
+#[derive(Clone)]
+pub struct P2pService;
+
+#[tonic::async_trait]
+impl proto::p2p_server::P2p for P2pService {
+  async fn propagate(
+    &self,
+    request: tonic::Request<proto::P2pMessage>,
+  ) -> Result<tonic::Response<proto::P2pSendResult>, tonic::Status> {
+    let request: P2pMessage = request
+      .into_inner()
+      .try_into()
+      .expect("failed to convert p2p proto request");
+    let response: P2pSendResult = todo!("idk");
+    let response: proto::P2pSendResult = response.into();
+    Ok(tonic::Response::new(response))
+  }
+
+  async fn receive(
+    &self,
+    request: tonic::Request<proto::P2pReceiveParams>,
+  ) -> Result<tonic::Response<proto::P2pMessage>, tonic::Status> {
+    let request: P2pReceiveParams = request
+      .into_inner()
+      .try_into()
+      .expect("failed to convert p2p receive params proto request");
+    let response: P2pMessage = todo!("idk");
+    let response: proto::P2pMessage = response.into();
+    Ok(tonic::Response::new(response))
+  }
+}
+
+#[derive(Clone)]
+pub struct P2pClient {
+  client: Arc<Mutex<proto::p2p_client::P2pClient<tonic::transport::Channel>>>,
+}
+
+impl P2pClient {
+  fn from_client(client: proto::p2p_client::P2pClient<tonic::transport::Channel>) -> Self {
+    Self {
+      client: Arc::new(Mutex::new(client)),
+    }
+  }
+
+  pub async fn connect(address: String) -> Result<Self, tonic::transport::Error> {
+    let client = proto::p2p_client::P2pClient::connect(address).await?;
+    Ok(Self::from_client(client))
+  }
+}
+
+#[tonic::async_trait]
+impl P2p for P2pClient {
+  async fn propagate(&self, msg: P2pMessage) -> Result<P2pSendResult, P2pError> {
+    dbg!(&msg);
+    let msg: proto::P2pMessage = msg.into();
+    let result: P2pSendResult = self
+      .client
+      .lock()
+      .await
+      /* TODO: Annoying that this is generated as an constrained impl method over the generic client
+       * type, not related to the generated server trait (makes it hard to use in generic code). */
+      .propagate(msg)
+      .await?
+      .into_inner()
+      .try_into()?;
+    Ok(result)
+  }
+
+  async fn receive(&self, params: P2pReceiveParams) -> Result<P2pMessage, P2pError> {
+    dbg!(&params);
+    let params: proto::P2pReceiveParams = params.into();
+    let msg: P2pMessage = self
+      .client
+      .lock()
+      .await
+      .receive(params)
+      .await?
+      .into_inner()
+      .try_into()?;
+    Ok(msg)
+  }
+}
+
 #[cfg(test)]
 pub mod proptest_strategies {
   use super::*;
-  use crate::proptest_strategies::*;
+  use crate::{messages::proptest_strategies::*, proptest_strategies::*};
 
   use proptest::prelude::*;
 
   prop_compose! {
     pub fn new_p2p_id()(uuid in new_uuid()) -> P2pMessageID {
       P2pMessageID { uuid }
+    }
+  }
+  prop_compose! {
+    pub fn new_p2p_message()(id in new_p2p_id(), op in new_operation()) -> P2pMessage {
+      P2pMessage { id, op }
     }
   }
 }
@@ -104,7 +221,6 @@ mod serde_impl {
       fn try_from(proto_message: proto::P2pMessageId) -> Result<Self, P2pError> {
         let proto::P2pMessageId { uuid } = proto_message.clone();
         let uuid: [u8; 16] = uuid
-          .clone()
           .ok_or_else(|| {
             P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
               "uuid",
@@ -183,6 +299,85 @@ mod serde_impl {
           prop_assert_eq!(p2p_id, resurrected);
         }
       }
+    }
+  }
+
+  mod p2p_message {
+    use super::*;
+
+    impl serde_mux::Schema for proto::P2pMessage {
+      type Source = P2pMessage;
+    }
+
+    impl TryFrom<proto::P2pMessage> for P2pMessage {
+      type Error = P2pError;
+
+      fn try_from(proto_message: proto::P2pMessage) -> Result<Self, P2pError> {
+        let proto::P2pMessage { id, op } = proto_message.clone();
+        let id: P2pMessageID = id
+          .ok_or_else(|| {
+            P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "id",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        let op: messages::Operation = op
+          .ok_or_else(|| {
+            P2pError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "op",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        Ok(Self { id, op })
+      }
+    }
+
+    impl From<P2pMessage> for proto::P2pMessage {
+      fn from(value: P2pMessage) -> Self {
+        let P2pMessage { id, op } = value;
+        Self {
+          id: Some(id.into()),
+          op: Some(op.into()),
+        }
+      }
+    }
+  }
+
+  mod p2p_send_result {
+    use super::*;
+
+    impl serde_mux::Schema for proto::P2pSendResult {
+      type Source = P2pSendResult;
+    }
+
+    impl TryFrom<proto::P2pSendResult> for P2pSendResult {
+      type Error = P2pError;
+
+      fn try_from(proto_message: proto::P2pSendResult) -> Result<Self, P2pError> { Ok(Self {}) }
+    }
+
+    impl From<P2pSendResult> for proto::P2pSendResult {
+      fn from(value: P2pSendResult) -> Self { Self {} }
+    }
+  }
+
+  mod p2p_receive_params {
+    use super::*;
+
+    impl serde_mux::Schema for proto::P2pReceiveParams {
+      type Source = P2pReceiveParams;
+    }
+
+    impl TryFrom<proto::P2pReceiveParams> for P2pReceiveParams {
+      type Error = P2pError;
+
+      fn try_from(proto_message: proto::P2pReceiveParams) -> Result<Self, P2pError> { Ok(Self {}) }
+    }
+
+    impl From<P2pReceiveParams> for proto::P2pReceiveParams {
+      fn from(value: P2pReceiveParams) -> Self { Self {} }
     }
   }
 }

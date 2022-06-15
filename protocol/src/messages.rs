@@ -59,12 +59,9 @@ use crate::{
   transforms::{Transform, TransformError},
 };
 
-use async_mutex::Mutex;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use std::sync::Arc;
 
 #[derive(Debug, Display, Error)]
 pub enum ProtocolError {
@@ -128,46 +125,6 @@ pub enum ClientMessage {
 #[tonic::async_trait]
 pub trait OperationService {
   async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError>;
-}
-
-#[derive(Clone)]
-pub struct OperationServiceClient {
-  client:
-    Arc<Mutex<proto::operation_service_client::OperationServiceClient<tonic::transport::Channel>>>,
-}
-
-impl OperationServiceClient {
-  fn from_client(
-    client: proto::operation_service_client::OperationServiceClient<tonic::transport::Channel>,
-  ) -> Self {
-    Self {
-      client: Arc::new(Mutex::new(client)),
-    }
-  }
-
-  pub async fn connect(address: String) -> Result<Self, tonic::transport::Error> {
-    let client = proto::operation_service_client::OperationServiceClient::connect(address).await?;
-    Ok(Self::from_client(client))
-  }
-}
-
-#[tonic::async_trait]
-impl OperationService for OperationServiceClient {
-  async fn process_operation(&self, request: Operation) -> Result<OperationResult, ProtocolError> {
-    dbg!(&request);
-    let request: proto::Operation = request.into();
-    let response: proto::OperationResult = self
-      .client
-      .lock()
-      .await
-      /* TODO: Annoying that this is generated as an constrained impl method over the generic client
-       * type, not related to the generated trait (makes it hard to use in generic code). */
-      .process_operation(request)
-      .await?
-      .into_inner();
-    let response: OperationResult = response.try_into()?;
-    Ok(response)
-  }
 }
 
 #[tonic::async_trait]

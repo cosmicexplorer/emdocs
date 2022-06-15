@@ -13,6 +13,7 @@ edition                 = "2021"
 [dependencies]
 async-mutex = "1.4.0"
 displaydoc              = { git = "https://github.com/yaahc/displaydoc", rev = "7159bb5c9d41ca3c7ccf04ae86ae3acb0ea12a27" }
+indexmap = "1.8.1"
 prost = "0.10"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1.0.30"

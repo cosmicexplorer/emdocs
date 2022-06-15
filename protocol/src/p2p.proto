@@ -5,8 +5,24 @@ syntax = "proto3";
 
 package emdocs.proto.p2p;
 
+import "messages.proto";
+
 /* A tag referring to a single message that should be propagated exactly once. */
 message P2pMessageID {
   /* A unique id, typically a UUID v4. */
   optional bytes uuid = 1;
+}
+
+message P2pMessage {
+  optional P2pMessageID id = 1;
+  optional emdocs.proto.messages.Operation op = 2;
+}
+
+message P2pSendResult {}
+
+message P2pReceiveParams {}
+
+service P2p {
+  rpc Propagate(P2pMessage) returns (P2pSendResult);
+  rpc Receive(P2pReceiveParams) returns (P2pMessage);
 }

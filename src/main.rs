@@ -25,7 +25,10 @@
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
 
-use emdocs_protocol::messages::{self, IDEService};
+use emdocs_protocol::{
+  messages::{self, IDEService},
+  p2p,
+};
 
 use clap::{Parser, Subcommand};
 use serde_json;
@@ -37,28 +40,30 @@ use std::io::{self, BufRead, Write};
 struct Opts {
   #[clap(subcommand)]
   action: Action,
+
+  /// Port to receive p2p connections at.
+  /* TODO: what should this default port be? */
+  #[clap(short, long, default_value_t = 37263)]
+  port: usize,
 }
 
 #[derive(Debug, Subcommand)]
 enum Action {
   /// Communicate via lines of JSON over stdio.
-  Serve {
-    /* TODO: what should this default port be? */
-    #[clap(short, long, default_value_t = 37263)]
-    port: usize,
-  },
+  Interact,
+  /// Listen for HTTP connections at the remote port and propagate p2p messages.
+  Serve,
 }
 
-/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- serve */
+/* echo '{"link": {"buffer_id": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":[34,246,198,16,207,151,73,193,141,135,206,60,34,174,195,229]}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- interact | jq | sponge */
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let Opts { action } = Opts::parse();
+  let Opts { action, port } = Opts::parse();
 
   match action {
-    Action::Serve { port } => {
-      /* let addr = format!("[::1]:{}", port).parse()?; */
-      /* let operation_service = */
-      /*   messages::OperationServiceClient::connect(format!("http://[::1]:{}", port)).await?; */
+    Action::Interact => {
+      /* let operation_service = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?; */
+
       struct OS;
       #[tonic::async_trait]
       impl messages::OperationService for OS {
@@ -72,17 +77,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       }
 
       let ide_service = messages::IDEServiceClient::from_client(OS);
-      /* let op_server = tonic::transport::Server::builder() */
-      /*   .add_service( */
-      /*     messages::proto::operation_service_server::OperationServiceServer::new( */
-      /*       operation_service.clone(), */
-      /*     ), */
-      /*   ) */
-      /*   .serve(addr); */
 
       /* TODO: The IDE's VFS is an OperationService!!! */
 
-      /* Hook up stdio to an instance of an IDEService by JSON en/decoding lines. */
+      /* Hook up stdio to an instance of an IDEService by JSON encoding lines. */
       for line in io::stdin().lock().lines() {
         let ide_msg: messages::IDEMessage = serde_json::from_str(&line?)?;
         let client_msg = ide_service.process_ide_message(ide_msg).await?;
@@ -92,9 +90,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdout().write(&client_msg)?;
       }
     },
+    Action::Serve => {
+      let addr = format!("[::1]:{}", port).parse()?;
+      tonic::transport::Server::builder()
+        .add_service(p2p::proto::p2p_server::P2pServer::new(p2p::P2pService))
+        .serve(addr)
+        .await?;
+    },
   }
-
-  /* op_server.await?; */
 
   Ok(())
 }

@@ -254,7 +254,6 @@ dependencies = [
  "emdocs-protocol",
  "futures",
  "hyper",
- "indexmap",
  "parking_lot",
  "proptest",
  "reqwest",
@@ -270,6 +269,7 @@ version = "0.0.0"
 dependencies = [
  "async-mutex",
  "displaydoc",
+ "indexmap",
  "proptest",
  "prost",
  "prost-build",
