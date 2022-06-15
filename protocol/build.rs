@@ -23,6 +23,7 @@ fn main() {
     "src/buffers.proto",
     "src/transforms.proto",
     "src/messages.proto",
+    "src/p2p.proto",
   ];
   for proto in &protos {
     println!("cargo:rerun-if-changed={}", proto);

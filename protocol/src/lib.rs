@@ -27,8 +27,9 @@
 #![deny(clippy::all)]
 
 pub mod buffers;
-mod error;
+pub mod error;
 pub mod messages;
+pub mod p2p;
 pub mod transforms;
 
 pub use error::Error;

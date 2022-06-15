@@ -32,4 +32,6 @@ pub enum Error {
   Buffer(#[from] crate::buffers::BufferError),
   /// an error {0} when handling transforms
   Transform(#[from] crate::transforms::TransformError),
+  /// an error {0} when handling p2p messages
+  P2p(#[from] crate::p2p::P2pError),
 }

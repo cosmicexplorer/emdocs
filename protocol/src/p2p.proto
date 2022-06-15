@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+/* Copyright 2022 Danny McClanahan */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+package emdocs.proto.p2p;
+
+/* A tag referring to a single message that should be propagated exactly once. */
+message P2pMessageID {
+  /* A unique id, typically a UUID v4. */
+  optional bytes uuid = 1;
+}
