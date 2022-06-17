@@ -569,11 +569,17 @@ mod serde_impl {
     impl TryFrom<proto::P2pSendResult> for P2pSendResult {
       type Error = P2pError;
 
-      fn try_from(proto_message: proto::P2pSendResult) -> Result<Self, P2pError> { Ok(Self {}) }
+      fn try_from(proto_message: proto::P2pSendResult) -> Result<Self, P2pError> {
+        assert_eq!(proto_message, proto::P2pSendResult {});
+        Ok(Self {})
+      }
     }
 
     impl From<P2pSendResult> for proto::P2pSendResult {
-      fn from(value: P2pSendResult) -> Self { Self {} }
+      fn from(value: P2pSendResult) -> Self {
+        assert_eq!(value, P2pSendResult {});
+        Self {}
+      }
     }
   }
 
