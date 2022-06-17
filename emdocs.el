@@ -58,6 +58,8 @@
 ;; Logic
 (defun emdocs--interaction-filter (proc string)
   (when (process-live-p proc)
+    ;; TODO: would love to use the native json lib, but that's not available in most emacs (and
+    ;; likely never will be? consider making a native rust module?).
     (let ((msg (json-read-from-string string)))
       (unless (and (stringp msg) (string-equal msg "ok"))
         (let* ((op (alist-get 'op msg))
@@ -82,11 +84,16 @@
   `(:op (:source ,source :transform (:type (:edit ,transform)))))
 
 (defun emdocs--write-stdin (x)
-  (when (process-live-p (get-process emdocs--process-name))
+  ;; TODO: consider batching these changes and then writing them when emacs is idle? Only necessary
+  ;; if latency is currently insufficient.
+  ;; TODO: also consider ways to avoid overhead of copying strings from a buffer with
+  ;; (buffer-substring), should the overhead turn out to be significant.
+  (when (emdocs--process-live-p)
     (let ((line (format "%s\n" (json-encode x))))
       (process-send-string emdocs--process-name line))))
 
 (defun emdocs--make-process ()
+  (message "%s" "initiating emdocs process...")
   (make-process
    :name emdocs--process-name
    :buffer emdocs--process-buffer-name
@@ -95,18 +102,24 @@
    :noquery t
    :stderr (get-buffer-create emdocs--error-buffer-name)))
 
+(defun emdocs--process-live-p ()
+  (process-live-p (get-process emdocs--process-name)))
+
 (defun emdocs--after-change-function (beg end prev-length)
   (when emdocs-mode
     (let ((source (emdocs--create-buffer-id emdocs-buffer-id))
           (point (emdocs--create-point beg)))
-      (->> (cond ((zerop prev-length)
-                  (->> (buffer-substring-no-properties beg end)
-                       (emdocs--create-insert point)))
-                 ((= beg end)
-                  (emdocs--create-delete point prev-length))
-                 (t (error "should never get here")))
-           (emdocs--create-edit source)
-           (emdocs--write-stdin)))))
+      (let ((delete-op (unless (zerop prev-length)
+                         (emdocs--create-delete point prev-length)))
+            (insert-op (unless (= beg end)
+                         (->> (buffer-substring beg end)
+                              (emdocs--create-insert point)))))
+        (cl-assert (or delete-op insert-op) t "every change must be an insert, delete, or both")
+        (cl-loop for op in `(,delete-op ,insert-op)
+                 when op
+                 do (->> op
+                         (emdocs--create-edit source)
+                         (emdocs--write-stdin)))))))
 
 (defun emdocs--before-change-function (beg end)
   ;; TODO: set up undo list, etc
@@ -118,8 +131,23 @@
   (add-hook 'after-change-functions #'emdocs--after-change-function nil t)
   (add-hook 'before-change-functions #'emdocs--before-change-function nil t))
 
+(defun emdocs--initiate-process-idempotent ()
+  (unless (emdocs--process-live-p)
+    (emdocs--make-process)))
+
 
 ;; Interactive
+
+(defun emdocs-kill-process ()
+  (interactive)
+  (when (emdocs--process-live-p)
+    (message "%s" "killing emdocs process...")
+    (kill-process emdocs--process-name)))
+
+(defun emdocs-restart-process ()
+  (interactive)
+  (emdocs-kill-process)
+  (emdocs--make-process))
 
 ;;;###autoload
 (define-minor-mode emdocs-mode
@@ -130,8 +158,7 @@
   (if emdocs-mode
       (progn
         (emdocs--setup-buffer-idempotent)
-        (unless (process-live-p (get-process emdocs--process-name))
-          (emdocs--make-process))
+        (emdocs--initiate-process-idempotent)
         t)
     nil))
 
