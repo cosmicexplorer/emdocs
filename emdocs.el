@@ -114,12 +114,8 @@
 (defun emdocs--setup-buffer-idempotent ()
   (unless emdocs-buffer-id
     (setq-local emdocs-buffer-id (uuid-string)))
-  (add-hook 'after-change-functions #'emdocs--after-change-function)
-  (add-hook 'before-change-functions #'emdocs--before-change-function))
-
-(defun emdocs--unset-change-hooks ()
-  (remove-hook 'after-change-functions #'emdocs--after-change-function)
-  (remove-hook 'before-change-functions #'emdocs--before-change-function))
+  (add-hook 'after-change-functions #'emdocs--after-change-function nil t)
+  (add-hook 'before-change-functions #'emdocs--before-change-function nil t))
 
 
 ;; Interactive
@@ -136,7 +132,6 @@
         (unless (process-live-p (get-process emdocs--process-name))
           (emdocs--make-process))
         t)
-    (emdocs--unset-change-hooks)
     nil))
 
 (provide 'emdocs)
