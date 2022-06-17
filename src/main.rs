@@ -141,10 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             messages::ClientMessage::ok
           },
-          messages::IDEMessage::link(link) => {
-            eprintln!("do nothing with link {:?}", link);
-            messages::ClientMessage::ok
-          },
         };
         assert_eq!(messages::ClientMessage::ok, client_msg);
       }

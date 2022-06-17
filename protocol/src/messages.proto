@@ -16,30 +16,20 @@ message Operation {
   optional emdocs.proto.transforms.Transform transform = 2;
 }
 
+message OkResult {}
+
 message OperationResult {
   oneof type {
     OkResult ok = 1;
   }
 }
 
-message RemoteClient {
-  optional string ip_address = 1;
-}
-
-message BufferAssociation {
-  optional emdocs.proto.buffers.BufferId buffer_id = 1;
-  optional RemoteClient remote = 2;
-}
-
 /* A command from an IDE. */
 message IDEMessage {
   oneof type {
     Operation op = 1;
-    BufferAssociation link = 2;
   }
 }
-
-message OkResult {}
 
 message ClientMessage {
   oneof type {
