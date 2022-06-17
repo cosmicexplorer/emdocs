@@ -113,11 +113,6 @@ pub trait P2p {
   async fn receive(&self, params: P2pReceiveParams) -> Result<P2pReceiveResult, P2pError>;
 }
 
-enum ReceiveResult {
-  Messages(Vec<proto::P2pMessage>),
-  Waiter(broadcast::Receiver<()>),
-}
-
 #[derive(Clone)]
 pub struct P2pService {
   mailboxes: Arc<RwLock<IndexMap<P2pParticipantId, Vec<P2pMessage>>>>,
@@ -126,12 +121,19 @@ pub struct P2pService {
 
 impl P2pService {
   pub fn new() -> Self {
-    let (condvar_sender, _) = broadcast::channel(1);
+    let (condvar_sender, _) = broadcast::channel(10);
     Self {
       mailboxes: Arc::new(RwLock::new(IndexMap::new())),
       condvar_sender,
     }
   }
+}
+
+/// Used to create a [`broadcast::Receiver`] before dropping the mailboxes write lock in
+/// [`P2pService::receive`].
+enum ReceiveResult {
+  Messages(Vec<proto::P2pMessage>),
+  Waiter(broadcast::Receiver<()>),
 }
 
 #[tonic::async_trait]
@@ -183,7 +185,7 @@ impl proto::p2p_server::P2p for P2pService {
           .entry(request.user_id)
           /* ...or create a new entry... */
           .or_insert_with(Vec::new)
-          /* ...then drain the results to empty the vector. */
+          /* ...then drain the results to empty the vector... */
           .drain(..)
           /* ...then produce a vector of protobufs. */
           .map(|msg| msg.into())
