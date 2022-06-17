@@ -30,6 +30,7 @@ use emdocs_protocol::{
   p2p::{self, P2p},
 };
 
+use bloomfilter::Bloom;
 use clap::{Parser, Subcommand};
 use serde_json;
 
@@ -81,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Action::Interact { sleep_after_stdin } => {
       let p2p_client = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?;
 
+      /* Forward any received operations to lines of JSON in stdout. */
       struct OS;
       #[tonic::async_trait]
       impl messages::OperationService for OS {
@@ -102,6 +104,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       let p2p2 = p2p_client.clone();
       /* Process p2p events in a background thread. */
       tokio::spawn(async move {
+        /* FIXME: make these less arbitrary (along with the use of a bloom filter in itself)! */
+        let estimated_max_items_count = 10000;
+        let estimated_false_positive_rate = 0.001;
+        let mut bloom = Bloom::<p2p::P2pMessageId>::new_for_fp_rate(
+          estimated_max_items_count,
+          estimated_false_positive_rate,
+        );
+        /* So we can avoid receiving any of our own messages. */
+        let our_user_id = p2p2.receive_params().user_id;
+
         while let Ok(p2p::P2pReceiveResult { messages }) = p2p2.receive(p2p2.receive_params()).await
         {
           for p2p::P2pMessage {
@@ -110,14 +122,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             user_id,
           } in messages.into_iter()
           {
-            dbg!(msg_id);
-            dbg!(user_id);
-            assert_eq!(
-              messages::OperationResult::ok,
-              OS.process_operation(op)
-                .await
-                .expect("processing op failed")
-            );
+            if user_id == our_user_id {
+              eprintln!(
+                "received message from user id {:?} (ourselves!), dropping it",
+                user_id
+              );
+            } else if bloom.check_and_set(&msg_id) {
+              /* If we've seen the id before, don't propagate it! */
+              eprintln!(
+                "received probable duplicate message with msg id {:?}, dropping it",
+                msg_id
+              );
+            } else {
+              assert_eq!(
+                messages::OperationResult::ok,
+                OS.process_operation(op)
+                  .await
+                  .expect("processing op failed")
+              );
+            }
           }
         }
       });

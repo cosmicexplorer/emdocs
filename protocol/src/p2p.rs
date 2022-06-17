@@ -33,13 +33,12 @@ pub mod proto {
 
 use crate::messages;
 
-use async_channel;
 use async_lock::RwLock;
-use bloomfilter::Bloom;
 use displaydoc::Display;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use std::sync::Arc;
@@ -114,34 +113,24 @@ pub trait P2p {
   async fn receive(&self, params: P2pReceiveParams) -> Result<P2pReceiveResult, P2pError>;
 }
 
+enum ReceiveResult {
+  Messages(Vec<proto::P2pMessage>),
+  Waiter(broadcast::Receiver<()>),
+}
+
 #[derive(Clone)]
 pub struct P2pService {
-  seen: Arc<RwLock<Bloom<P2pMessageId>>>,
   mailboxes: Arc<RwLock<IndexMap<P2pParticipantId, Vec<P2pMessage>>>>,
-  condvar_sender: async_channel::Sender<()>,
-  condvar_receiver: async_channel::Receiver<()>,
+  condvar_sender: broadcast::Sender<()>,
 }
 
 impl P2pService {
-  fn from_bloom(bloom: Bloom<P2pMessageId>) -> Self {
-    let (condvar_sender, condvar_receiver) = async_channel::unbounded();
+  pub fn new() -> Self {
+    let (condvar_sender, _) = broadcast::channel(1);
     Self {
-      seen: Arc::new(RwLock::new(bloom)),
       mailboxes: Arc::new(RwLock::new(IndexMap::new())),
       condvar_sender,
-      condvar_receiver,
     }
-  }
-
-  pub fn new() -> Self {
-    /* FIXME: make these less arbitrary (along with the use of a bloom filter in itself)! */
-    let estimated_max_items_count = 10000;
-    let estimated_false_positive_rate = 0.001;
-    let bloom = Bloom::<P2pMessageId>::new_for_fp_rate(
-      estimated_max_items_count,
-      estimated_false_positive_rate,
-    );
-    Self::from_bloom(bloom)
   }
 }
 
@@ -156,21 +145,19 @@ impl proto::p2p_server::P2p for P2pService {
       .try_into()
       .expect("failed to convert p2p proto request");
     dbg!(&request);
-    /* If we've seen the id before, don't propagate it! */
-    if !self.seen.write().await.check_and_set(&request.msg_id) {
-      for (recipient_id, mailbox) in self.mailboxes.write().await.iter_mut() {
-        /* Do not propagate it to ourself. */
-        if recipient_id != &request.user_id {
-          mailbox.push(request.clone());
-          /* Wake up any recipients waiting on a receive call! */
-          self
-            .condvar_sender
-            .send(())
-            .await
-            .expect("channel should be open");
-        }
-      }
+    /* Get the write lock and update the mailboxes. */
+    for mailbox in self.mailboxes.write().await.values_mut() {
+      /* We are fine propagating it to ourselves, as this is filtered out in the client. */
+      mailbox.push(request.clone());
     }
+    /* ^Drop the write lock. */
+    /* Wake up any recipients waiting on a receive call! */
+    match self.condvar_sender.send(()) {
+      /* The send probably succeeded. */
+      Ok(_) => (),
+      /* If there are no receivers waiting, then we don't need to notify anyone. */
+      Err(broadcast::error::SendError(())) => (),
+    };
     let response = P2pSendResult {};
     let response: proto::P2pSendResult = response.into();
     Ok(tonic::Response::new(response))
@@ -188,26 +175,45 @@ impl proto::p2p_server::P2p for P2pService {
 
     /* Try getting any messages, and waiting for a channel flag if none are yet found. */
     loop {
-      let messages: Vec<proto::P2pMessage> = self
-        .mailboxes
-        .write()
-        .await
-        .entry(request.user_id)
-        .or_insert_with(Vec::new)
-        .drain(..)
-        .map(|x| x.into())
-        .collect();
-      if messages.is_empty() {
-        /* Wait for a channel flag in order to try again. */
-        let () = self
-          .condvar_receiver
-          .recv()
-          .await
-          .expect("should never fail");
-      } else {
-        /* We've finally found some messages, let's return. */
-        let response = proto::P2pReceiveResult { messages };
-        return Ok(tonic::Response::new(response));
+      let receive_result = {
+        /* Get a write lock on the mailbox. */
+        let mut mailboxes = self.mailboxes.write().await;
+        let messages: Vec<proto::P2pMessage> = mailboxes
+          /* Under the lock, access the entry... */
+          .entry(request.user_id)
+          /* ...or create a new entry... */
+          .or_insert_with(Vec::new)
+          /* ...then drain the results to empty the vector. */
+          .drain(..)
+          /* ...then produce a vector of protobufs. */
+          .map(|msg| msg.into())
+          .collect();
+        if messages.is_empty() {
+          /* Drop the write lock after generating a new subscriber. Subscribers will receive
+           * whatever messages they get after *subscription*, so we're ok dropping the write lock
+           * here before we await the response. */
+          let condvar_receiver = self.condvar_sender.subscribe();
+          ReceiveResult::Waiter(condvar_receiver)
+        } else {
+          ReceiveResult::Messages(messages)
+        }
+      };
+      /* ^Drop the write lock. */
+      match receive_result {
+        ReceiveResult::Messages(messages) => {
+          /* We've finally found some messages, let's return. */
+          let response = proto::P2pReceiveResult { messages };
+          return Ok(tonic::Response::new(response));
+        },
+        ReceiveResult::Waiter(mut condvar_receiver) => {
+          /* Wait for a channel flag in order to try again. */
+          match condvar_receiver.recv().await {
+            /* Got a notification, we can try again now. */
+            Ok(()) => (),
+            /* This is supposed to occur if the sender is closed, or if there's any lagging. */
+            Err(e) => unreachable!("{}", e),
+          }
+        },
       }
     }
   }
