@@ -13,7 +13,9 @@ message P2pMessageId {
   optional bytes uuid = 1;
 }
 
+/* A tag referring to a specific participant in the distributed (p2p) conversation. */
 message P2pParticipantId {
+  /* A unique id, typically a UUID v4. */
   optional bytes uuid = 1;
 }
 
