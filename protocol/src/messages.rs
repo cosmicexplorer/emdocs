@@ -56,7 +56,6 @@ pub mod proto {
 
 use crate::{
   buffers::{BufferError, BufferId},
-  p2p::{self, P2p},
   transforms::{Transform, TransformError},
 };
 

@@ -34,7 +34,7 @@ pub mod proto {
 use crate::messages;
 
 use async_channel;
-use async_lock::{Mutex, RwLock};
+use async_lock::RwLock;
 use bloomfilter::Bloom;
 use displaydoc::Display;
 use indexmap::IndexMap;
@@ -151,7 +151,6 @@ impl proto::p2p_server::P2p for P2pService {
     &self,
     request: tonic::Request<proto::P2pMessage>,
   ) -> Result<tonic::Response<proto::P2pSendResult>, tonic::Status> {
-    dbg!(request.metadata());
     let request: P2pMessage = request
       .into_inner()
       .try_into()

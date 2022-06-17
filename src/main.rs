@@ -26,10 +26,8 @@
 #![deny(clippy::all)]
 
 use emdocs_protocol::{
-  buffers,
-  messages::{self, IDEService, OperationService},
+  messages::{self, OperationService},
   p2p::{self, P2p},
-  transforms,
 };
 
 use clap::{Parser, Subcommand};
