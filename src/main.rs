@@ -55,7 +55,12 @@ enum Action {
   /// Listen for HTTP connections at the remote port and propagate p2p messages.
   Serve,
   /// Communicate via lines of JSON over stdio.
-  Interact,
+  Interact {
+    /// Sleep for the specified number of milliseconds after stdin is closed. This is useful
+    /// for debugging.
+    #[clap(short, long)]
+    sleep_after_stdin: Option<u64>,
+  },
 }
 
 /* echo '{"link": {"buffer_id": {"uuid": "bfbb5e5f7e474018a42b0664e6fdb6c9"}, "remote": {"ip_address": "https://0.0.0.0:3600"}}}\n{"op": {"source": {"uuid":"bfbb5e5f7e474018a42b0664e6fdb6c9"}, "transform": {"type": {"edit": {"point": {"code_point_index": 0}, "payload": {"insert": {"contents": "aaa"}}}}}}}' | cargo run -- interact | jq | sponge */
@@ -73,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .serve(addr)
         .await?;
     },
-    Action::Interact => {
+    Action::Interact { sleep_after_stdin } => {
       let p2p_client = p2p::P2pClient::connect(format!("http://[::1]:{}", port)).await?;
 
       struct OS;
@@ -144,7 +149,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(messages::ClientMessage::ok, client_msg);
       }
 
-      thread::sleep(time::Duration::from_millis(2000));
+      if let Some(millis) = sleep_after_stdin {
+        thread::sleep(time::Duration::from_millis(millis));
+      }
     },
   }
 
