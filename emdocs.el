@@ -92,6 +92,7 @@
    :buffer emdocs--process-buffer-name
    :command '("/home/cosmicexplorer/projects/active/emdocs/target/debug/emdocs" "interact")
    :filter #'emdocs--interaction-filter
+   :noquery t
    :stderr (get-buffer-create emdocs--error-buffer-name)))
 
 (defun emdocs--after-change-function (beg end prev-length)
