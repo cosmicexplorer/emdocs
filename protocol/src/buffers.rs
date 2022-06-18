@@ -62,9 +62,10 @@ impl From<prost::EncodeError> for BufferError {
   fn from(value: prost::EncodeError) -> Self { Self::Proto(value.into()) }
 }
 
-/// A serializable identifier for a buffer sharable across time and space.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// <buffer id @ {uuid}>
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BufferId {
+  /// A serializable identifier for a buffer sharable across time and space.
   pub uuid: Uuid,
 }
 

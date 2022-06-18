@@ -48,11 +48,14 @@
 use crate::{buffers::BufferId, transforms};
 
 use async_lock::RwLock;
+use displaydoc::Display;
 use indexmap::IndexMap;
+use thiserror::Error;
 
-use std::{collections::hash_map::DefaultHasher, hash::Hasher, sync::Arc};
+use std::{collections::hash_map::DefaultHasher, hash::Hasher, num, sync::Arc};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// <checksum hash: {hash}, length: {length}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TextChecksum {
   /// Hash traits such as [`Hasher`] by default will only output an unsigned integer type. If wider
   /// output is desired, we should explicitly use a cryptographic checksum like
@@ -78,6 +81,14 @@ pub struct TextSection {
   pub num_occurrences: usize,
 }
 
+#[derive(Debug, Display, Error, Clone)]
+pub enum InternError {
+  /// checksum {0} was not found in the intern table
+  ChecksumDidNotExist(TextChecksum),
+  /// hash collision for checksum {0} between {1} and {2}
+  HashCollision(TextChecksum, String, String),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InternedTexts {
   pub interned_text_sections: IndexMap<TextChecksum, TextSection>,
@@ -90,49 +101,63 @@ impl InternedTexts {
     }
   }
 
-  pub fn get_no_eq_check(&self, checksum: &TextChecksum) -> &TextSection {
-    self
-      .interned_text_sections
-      .get(checksum)
-      .expect("checksum must exist")
+  pub fn get_no_eq_check(&self, checksum: TextChecksum) -> Result<&TextSection, InternError> {
+    match self.interned_text_sections.get(&checksum) {
+      Some(text_section) => Ok(text_section),
+      None => Err(InternError::ChecksumDidNotExist(checksum)),
+    }
   }
 
-  pub fn increment(&mut self, text: &str) -> TextChecksum {
-    let checksum = TextChecksum::extract(text);
-    self
+  fn increment_hashed(&mut self, checksum: TextChecksum, text: &str) -> Result<(), InternError> {
+    let text_section = self
       .interned_text_sections
       .entry(checksum)
-      .and_modify(|text_section| {
-        assert_eq!(
-          text, &text_section.contents,
-          "we never expect a hash collision!!!!???"
-        );
-        text_section.num_occurrences += 1;
-      })
       .or_insert_with(|| TextSection {
         contents: text.to_string(),
-        num_occurrences: 1,
+        num_occurrences: 0,
       });
-    checksum
+    /* TODO: only do the == check if length is below some number? */
+    if text == &text_section.contents {
+      text_section.num_occurrences += 1;
+      Ok(())
+    } else {
+      Err(InternError::HashCollision(
+        checksum,
+        text.to_string(),
+        text_section.contents.clone(),
+      ))
+    }
   }
 
-  pub fn decrement(&mut self, checksum: TextChecksum) {
-    let num_occurrences = self
+  pub fn increment(&mut self, text: &str) -> Result<TextChecksum, InternError> {
+    let checksum = TextChecksum::extract(text);
+    self.increment_hashed(checksum, text)?;
+    Ok(checksum)
+  }
+
+  pub fn extract_from(&mut self, other: Self) -> Result<(), InternError> {
+    for (checksum, text_section) in other.interned_text_sections.into_iter() {
+      self.increment_hashed(checksum, &text_section.contents)?;
+    }
+    Ok(())
+  }
+
+  pub fn decrement(&mut self, checksum: TextChecksum) -> Result<(), InternError> {
+    let text_section = self
       .interned_text_sections
       .get_mut(&checksum)
-      .map(|text_section| {
-        text_section.num_occurrences -= 1;
-        text_section.num_occurrences
-      })
-      .expect("expected checksum to exist to be decremented");
+      .ok_or_else(|| InternError::ChecksumDidNotExist(checksum))?;
+    text_section.num_occurrences -= 1;
     /* If the buffer has no more instances of this string, remove it from the interns list. */
-    if num_occurrences == 0 {
+    if text_section.num_occurrences == 0 {
       assert!(self.interned_text_sections.remove(&checksum).is_some());
     }
+    Ok(())
   }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// <section index @ {0}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionIndex(pub usize);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -150,28 +175,27 @@ impl SectionRange {
   pub fn single(si: SectionIndex) -> Self { Self::new(si, si) }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// <insertion index @ {0}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InsertionIndex(pub usize);
 
-impl From<transforms::Point> for InsertionIndex {
-  fn from(value: transforms::Point) -> Self {
+impl TryFrom<transforms::Point> for InsertionIndex {
+  type Error = num::TryFromIntError;
+
+  fn try_from(value: transforms::Point) -> Result<Self, Self::Error> {
     let transforms::Point { code_point_index } = value;
-    Self(
-      code_point_index
-        .try_into()
-        .expect("cp index convertible from u64 to usize"),
-    )
+    Ok(Self(code_point_index.try_into()?))
   }
 }
 
-impl From<InsertionIndex> for transforms::Point {
-  fn from(value: InsertionIndex) -> Self {
+impl TryFrom<InsertionIndex> for transforms::Point {
+  type Error = num::TryFromIntError;
+
+  fn try_from(value: InsertionIndex) -> Result<Self, Self::Error> {
     let InsertionIndex(index) = value;
-    Self {
-      code_point_index: index
-        .try_into()
-        .expect("insertion index convertible from usize to u64"),
-    }
+    Ok(Self {
+      code_point_index: index.try_into()?,
+    })
   }
 }
 
@@ -258,6 +282,16 @@ impl Tokenizer for NewlineTokenizer {
   }
 }
 
+#[derive(Debug, Display, Error)]
+pub enum BufferError {
+  /// error managing interned string: {0}
+  Intern(#[from] InternError),
+  /// section index {0} was past the end of the section list at {1}
+  SectionOutOfBounds(SectionIndex, SectionIndex),
+  /// insertion index {0} was past the end of the buffer at {1}
+  EditOutOfBounds(InsertionIndex, InsertionIndex),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
   pub interns: InternedTexts,
@@ -265,6 +299,13 @@ pub struct Buffer {
 }
 
 impl Buffer {
+  pub fn new() -> Self {
+    Self {
+      interns: InternedTexts::new(),
+      lines: Vec::new(),
+    }
+  }
+
   /* pub fn dump(self) -> String { */
   /*   let Self { interns, lines } = self; */
   /*   let mut ret = String::new(); */
@@ -283,9 +324,10 @@ impl Buffer {
   /// Tokenize a string into a buffer.
   ///
   ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let buffer = Buffer::tokenize("ab\nc\n\nef\ng");
+  /// let buffer = Buffer::tokenize("ab\nc\n\nef\ng")?;
   /// assert_eq!(
   ///   buffer,
   ///   Buffer {
@@ -312,7 +354,7 @@ impl Buffer {
   ///   },
   /// );
   ///
-  /// let buffer = Buffer::tokenize("ab\n");
+  /// let buffer = Buffer::tokenize("ab\n")?;
   /// assert_eq!(
   ///   buffer,
   ///   Buffer {
@@ -331,7 +373,7 @@ impl Buffer {
   ///   },
   /// );
   ///
-  /// let buffer = Buffer::tokenize("ab\n\n");
+  /// let buffer = Buffer::tokenize("ab\n\n")?;
   /// assert_eq!(
   ///   buffer,
   ///   Buffer {
@@ -350,95 +392,118 @@ impl Buffer {
   ///     ],
   ///   },
   /// );
+  /// # Ok(())
+  /// # }
   ///```
-  pub fn tokenize(input: &str) -> Self {
+  pub fn tokenize(input: &str) -> Result<Self, BufferError> {
     let mut interns = InternedTexts::new();
     let mut lines = Vec::new();
     let mut last_token_index: usize = 0;
     for TokenIndex { location, length } in NewlineTokenizer.tokenize(input).into_iter() {
       let cur_line = &input[last_token_index..location];
-      let checksum = interns.increment(cur_line);
+      let checksum = interns.increment(cur_line)?;
       lines.push(checksum);
       last_token_index = location + length;
     }
     /* If we ended on a token, then the last line is empty. If there were no tokens, then this is
      * the whole string. */
     let cur_line = &input[last_token_index..];
-    let checksum = interns.increment(cur_line);
+    let checksum = interns.increment(cur_line)?;
     lines.push(checksum);
-    Self { interns, lines }
+    Ok(Self { interns, lines })
   }
 
   /// ???
   ///
   ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let mut abc = Buffer::tokenize("ab\nc");
-  /// let def = Buffer::tokenize("de\nf");
+  /// let mut abc = Buffer::tokenize("ab\nc")?;
+  /// let def = Buffer::tokenize("de\nf")?;
   /// let mut abc2 = abc.clone();
   /// let def2 = def.clone();
   /// let mut abc3 = abc.clone();
   /// let def3 = def.clone();
   ///
-  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(1)));
-  /// let ab_de_f = Buffer::tokenize("ab\nde\nf");
+  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(1)))?;
+  /// let ab_de_f = Buffer::tokenize("ab\nde\nf")?;
   /// assert_eq!(abc, ab_de_f);
   ///
-  /// abc2.merge_into_at(def2, SectionRange::single(SectionIndex(0)));
-  /// let de_f_c = Buffer::tokenize("de\nf\nc");
+  /// abc2.merge_into_at(def2, SectionRange::single(SectionIndex(0)))?;
+  /// let de_f_c = Buffer::tokenize("de\nf\nc")?;
   /// assert_eq!(abc2, de_f_c);
   ///
-  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(1)));
-  /// let de_f = Buffer::tokenize("de\nf");
+  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(1)))?;
+  /// let de_f = Buffer::tokenize("de\nf")?;
   /// assert_eq!(abc3, de_f);
   ///
-  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng");
-  /// let f = Buffer::tokenize("f");
-  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(1), SectionIndex(2)));
-  /// let ab_f_g = Buffer::tokenize("ab\nf\ng");
+  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng")?;
+  /// let f = Buffer::tokenize("f")?;
+  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(1), SectionIndex(2)))?;
+  /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
+  /// # Ok(())
+  /// # }
   ///```
-  pub fn merge_into_at(&mut self, other: Self, at: SectionRange) {
+  pub fn merge_into_at(&mut self, other: Self, at: SectionRange) -> Result<(), BufferError> {
     /* TODO: make this faster! */
     let Self { interns, lines } = other;
-    for (checksum, text_section) in interns.interned_text_sections.into_iter() {
-      assert_eq!(checksum, self.interns.increment(&text_section.contents));
+    self.interns.extract_from(interns)?;
+    let (prefix, occluded, suffix) = Self::split_lines_by_range(&self.lines, at)?;
+    for checksum in occluded.iter() {
+      self.interns.decrement(*checksum)?;
     }
-    assert!(
-      at.end.0 < self.lines.len(),
-      "cannot merge past end of lines!"
-    );
-    /* Have to add + 1 to convert into noninclusive range, sigh. */
-    for ind in at.start.0..at.end.0 + 1 {
-      let si = SectionIndex(ind);
-      self.interns.decrement(*self.get_section(&si));
-    }
-    self.lines = self.lines[..at.start.0]
+    self.lines = prefix
       .iter()
       .cloned()
       .chain(lines.into_iter())
-      .chain(self.lines[at.end.0 + 1..].iter().cloned())
+      .chain(suffix.iter().cloned())
       .collect();
+    Ok(())
   }
 
-  fn get_section(&self, si: &SectionIndex) -> &TextChecksum { &self.lines[si.0] }
+  fn split_lines_by_range(
+    lines: &[TextChecksum],
+    range: SectionRange,
+  ) -> Result<(&[TextChecksum], &[TextChecksum], &[TextChecksum]), BufferError> {
+    let SectionRange { start, end } = range;
+    assert!(!lines.is_empty());
+    let final_section = SectionIndex(lines.len() - 1);
+    if start > final_section {
+      return Err(BufferError::SectionOutOfBounds(start, final_section));
+    }
+    /* Do *NOT* include the upper bound. */
+    let lhs = &lines[..start.0];
+    if end > final_section {
+      return Err(BufferError::SectionOutOfBounds(end, final_section));
+    }
+    /* Have to add + 1 to convert into noninclusive range, sigh. */
+    let mid = &lines[start.0..end.0 + 1];
+    let rhs = &lines[end.0 + 1..];
+    Ok((lhs, mid, rhs))
+  }
+
+  fn get_section(&self, si: SectionIndex) -> Result<&TextChecksum, BufferError> {
+    self
+      .lines
+      .get(si.0)
+      .ok_or_else(|| BufferError::SectionOutOfBounds(si, self.final_section()))
+  }
 
   fn final_section(&self) -> SectionIndex {
     assert!(!self.lines.is_empty());
     SectionIndex(self.lines.len() - 1)
   }
 
-  fn locate_within_section(&self, at: InsertionIndex) -> FoundSection {
+  fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
     /* TODO: make this faster! */
-    let InsertionIndex(at) = at;
     let mut cur_location: usize = 0;
     let mut found_section: Option<FoundSection> = None;
     for (section_index, checksum) in self.lines.iter().enumerate() {
-      assert!(cur_location <= at);
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      if cur_location + checksum.length + 1 > at {
-        let within_section = at - cur_location;
+      if cur_location + checksum.length + 1 > at.0 {
+        let within_section = at.0 - cur_location;
         found_section = Some(FoundSection {
           section: SectionIndex(section_index),
           within: WithinSectionIndex(within_section),
@@ -449,112 +514,137 @@ impl Buffer {
         cur_location += checksum.length + 1;
       }
     }
-    found_section.unwrap_or_else(|| {
-      if at > cur_location {
-        unreachable!(
-          "tried to insert/delete at {}, when max position in buffer was {}",
-          at, cur_location
-        );
-      }
-      assert_eq!(at, cur_location);
-      let final_section = self.final_section();
-      FoundSection {
-        section: final_section,
-        within: WithinSectionIndex(self.get_section(&final_section).length),
-      }
-    })
+    match found_section {
+      Some(fs) => Ok(fs),
+      None => {
+        if at.0 > cur_location {
+          Err(BufferError::EditOutOfBounds(
+            at,
+            InsertionIndex(cur_location),
+          ))
+        } else {
+          let final_section = self.final_section();
+          Ok(FoundSection {
+            section: final_section,
+            within: WithinSectionIndex(self.get_section(final_section)?.length),
+          })
+        }
+      },
+    }
   }
 
-  fn locate_deletion_range(&self, range: DeletionRange) -> DeletionResult {
+  fn locate_deletion_range(&self, range: DeletionRange) -> Result<DeletionResult, BufferError> {
     /* TODO: make this faster! */
     let DeletionRange { beg, end } = range;
-    let beg = self.locate_within_section(beg);
-    let end = self.locate_within_section(end);
-    DeletionResult { beg, end }
+    let beg = self.locate_within_section(beg)?;
+    let end = self.locate_within_section(end)?;
+    Ok(DeletionResult { beg, end })
   }
 
   /// ???
   ///
   ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let mut abc = Buffer::tokenize("ab\nc");
+  /// let mut abc = Buffer::tokenize("ab\nc")?;
   /// let mut abc2 = abc.clone();
   /// let mut abc3 = abc.clone();
   ///
-  /// abc.insert_at(InsertionIndex(2), "de\nf");
-  /// let abde_f_c = Buffer::tokenize("abde\nf\nc");
+  /// abc.insert_at(InsertionIndex(2), "de\nf")?;
+  /// let abde_f_c = Buffer::tokenize("abde\nf\nc")?;
   /// assert_eq!(abc, abde_f_c);
   ///
-  /// abc2.insert_at(InsertionIndex(0), "de\nf");
-  /// let de_fab_c = Buffer::tokenize("de\nfab\nc");
+  /// abc2.insert_at(InsertionIndex(0), "de\nf")?;
+  /// let de_fab_c = Buffer::tokenize("de\nfab\nc")?;
   /// assert_eq!(abc2, de_fab_c);
   ///
-  /// abc3.insert_at(InsertionIndex(3), "de\nf");
-  /// let ab_de_fc = Buffer::tokenize("ab\nde\nfc");
+  /// abc3.insert_at(InsertionIndex(3), "de\nf")?;
+  /// let ab_de_fc = Buffer::tokenize("ab\nde\nfc")?;
   /// assert_eq!(abc3, ab_de_fc);
+  /// # Ok(())
+  /// # }
   ///```
-  pub fn insert_at(&mut self, at: InsertionIndex, s: &str) {
+  pub fn insert_at(&mut self, at: InsertionIndex, s: &str) -> Result<(), BufferError> {
     /* TODO: make this faster! */
-    let FoundSection { section, within } = self.locate_within_section(at);
+    let FoundSection { section, within } = self.locate_within_section(at)?;
     let current_line = &self
       .interns
-      .get_no_eq_check(self.get_section(&section))
+      .get_no_eq_check(*self.get_section(section)?)?
       .contents;
     let new_line_string = [&current_line[..within.0], s, &current_line[within.0..]].concat();
     self.merge_into_at(
-      Self::tokenize(&new_line_string),
+      Self::tokenize(&new_line_string)?,
       SectionRange::single(section),
-    );
+    )?;
+    Ok(())
   }
 
   /// ???
   ///
   ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let mut ab_c = Buffer::tokenize("ab\nc");
-  /// ab_c.replace("d\nef");
-  /// let d_ef = Buffer::tokenize("d\nef");
+  /// let mut ab_c = Buffer::tokenize("ab\nc")?;
+  /// ab_c.replace("d\nef")?;
+  /// let d_ef = Buffer::tokenize("d\nef")?;
   /// assert_eq!(ab_c, d_ef);
+  /// # Ok(())
+  /// # }
   ///```
-  pub fn replace(&mut self, s: &str) {
-    let Self { interns, lines } = Self::tokenize(s);
+  pub fn replace(&mut self, s: &str) -> Result<(), BufferError> {
+    let Self { interns, lines } = Self::tokenize(s)?;
     self.interns = interns;
     self.lines = lines;
+    Ok(())
   }
 
   /// ???
   ///
   ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let mut abc = Buffer::tokenize("ab\nc");
-  /// abc.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(0) });
-  /// let b_c = Buffer::tokenize("b\nc");
+  /// let mut abc = Buffer::tokenize("ab\nc")?;
+  /// abc.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(0) })?;
+  /// let b_c = Buffer::tokenize("b\nc")?;
   /// assert_eq!(abc, b_c);
   ///
-  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng");
-  /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(6) });
-  /// let ab_f_g = Buffer::tokenize("ab\nf\ng");
+  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng")?;
+  /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(6) })?;
+  /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
+  /// # Ok(())
+  /// # }
   ///```
-  pub fn delete_at(&mut self, range: DeletionRange) {
-    let DeletionResult { beg, end } = self.locate_deletion_range(range);
+  pub fn delete_at(&mut self, range: DeletionRange) -> Result<(), BufferError> {
+    let DeletionResult { beg, end } = self.locate_deletion_range(range)?;
     let prefix = &self
       .interns
-      .get_no_eq_check(self.get_section(&beg.section))
+      .get_no_eq_check(*self.get_section(beg.section)?)?
       .contents[..beg.within.0];
     let suffix = &self
       .interns
-      .get_no_eq_check(self.get_section(&end.section))
+      .get_no_eq_check(*self.get_section(end.section)?)?
       .contents[end.within.0 + 1..];
     let new_line_string = [prefix, suffix].concat();
     self.merge_into_at(
-      Self::tokenize(&new_line_string),
+      Self::tokenize(&new_line_string)?,
       SectionRange::new(beg.section, end.section),
-    )
+    )?;
+    Ok(())
   }
+}
+
+#[derive(Debug, Display, Error)]
+pub enum BufferMappingError {
+  /// error handling a buffer: {0}
+  Buf(#[from] BufferError),
+  /// failed to find a buffer with id {0}
+  BufNotFound(BufferId),
+  /// numerical conversion error: {0}
+  Num(#[from] num::TryFromIntError),
 }
 
 #[derive(Debug, Clone)]
@@ -569,44 +659,51 @@ impl BufferMapping {
     }
   }
 
-  pub async fn initialize_buffer(&self, id: BufferId, contents: &str) {
-    assert!(!self.live_buffers.read().await.contains_key(&id));
-    self
+  pub async fn initialize_buffer(
+    &self,
+    id: BufferId,
+    contents: &str,
+  ) -> Result<(), BufferMappingError> {
+    let buffer = self
       .live_buffers
       .write()
       .await
       .entry(id)
-      .or_insert_with(|| Arc::new(RwLock::new(Buffer::tokenize(contents))));
+      .or_insert_with(|| Arc::new(RwLock::new(Buffer::new())))
+      .clone();
+    buffer.write().await.replace(contents)?;
+    Ok(())
   }
 
-  pub async fn apply_transform(&self, id: BufferId, transform: transforms::Transform) {
+  pub async fn apply_transform(
+    &self,
+    id: BufferId,
+    transform: transforms::Transform,
+  ) -> Result<(), BufferMappingError> {
     let transforms::Transform { r#type } = transform;
     let buffer = self
       .live_buffers
       .read()
       .await
       .get(&id)
-      .expect("expected buffer to exist")
+      .ok_or_else(|| BufferMappingError::BufNotFound(id))?
       .clone();
     let mut buffer = buffer.write().await;
     match r#type {
       transforms::TransformType::edit(transforms::Edit { point, payload }) => {
-        let insertion_index: InsertionIndex = point.into();
+        let insertion_index: InsertionIndex = point.try_into()?;
         match payload {
           transforms::EditPayload::insert(transforms::Insert { contents }) => {
-            buffer.insert_at(insertion_index, &contents);
+            buffer.insert_at(insertion_index, &contents)?;
           },
           transforms::EditPayload::delete(transforms::Delete { distance }) => {
-            let deletion_range = insertion_index.delete_range(
-              distance
-                .try_into()
-                .expect("distance should have been convertible to usize"),
-            );
-            buffer.delete_at(deletion_range);
+            let deletion_range = insertion_index.delete_range(distance.try_into()?);
+            buffer.delete_at(deletion_range)?;
           },
         }
       },
       transforms::TransformType::sync(sync) => todo!("sync: {:?}", sync),
     }
+    Ok(())
   }
 }
