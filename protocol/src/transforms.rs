@@ -71,7 +71,7 @@ pub struct Insert {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Delete {
-  pub distance: u32,
+  pub distance: u64,
 }
 
 /// <point @ {code_point_index}>
@@ -85,7 +85,7 @@ pub struct Point {
 impl Default for Point {
   fn default() -> Self {
     Self {
-      code_point_index: 0,
+      code_point_index: 1,
     }
   }
 }
@@ -159,12 +159,12 @@ pub mod proptest_strategies {
     }
   }
   prop_compose! {
-    pub fn new_delete()(distance in any::<u32>()) -> Delete {
+    pub fn new_delete()(distance in any::<u64>()) -> Delete {
       Delete { distance }
     }
   }
   prop_compose! {
-    pub fn new_point()(code_point_index in any::<u32>()) -> Point {
+    pub fn new_point()(code_point_index in any::<u64>()) -> Point {
       Point { code_point_index }
     }
   }

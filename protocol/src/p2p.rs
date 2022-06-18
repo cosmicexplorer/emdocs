@@ -66,8 +66,8 @@ pub struct P2pMessageId {
   pub uuid: Uuid,
 }
 
-impl Default for P2pMessageId {
-  fn default() -> Self {
+impl P2pMessageId {
+  pub fn new() -> Self {
     Self {
       uuid: Uuid::new_v4(),
     }
@@ -79,8 +79,8 @@ pub struct P2pParticipantId {
   pub uuid: Uuid,
 }
 
-impl Default for P2pParticipantId {
-  fn default() -> Self {
+impl P2pParticipantId {
+  fn new() -> Self {
     Self {
       uuid: Uuid::new_v4(),
     }
@@ -237,7 +237,7 @@ impl P2pClient {
 
   pub async fn connect(address: String) -> Result<Self, tonic::transport::Error> {
     let client = proto::p2p_client::P2pClient::connect(address).await?;
-    let user_id = P2pParticipantId::default();
+    let user_id = P2pParticipantId::new();
     Ok(Self::from_client(user_id, client))
   }
 
@@ -287,13 +287,18 @@ pub mod proptest_strategies {
   use proptest::prelude::*;
 
   prop_compose! {
-    pub fn new_p2p_id()(uuid in new_uuid()) -> P2pMessageId {
+    pub fn new_p2p_msg_id()(uuid in new_uuid()) -> P2pMessageId {
       P2pMessageId { uuid }
     }
   }
   prop_compose! {
-    pub fn new_p2p_message()(id in new_p2p_id(), op in new_operation()) -> P2pMessage {
-      P2pMessage { id, op }
+    pub fn new_p2p_user_id()(uuid in new_uuid()) -> P2pParticipantId {
+      P2pParticipantId { uuid }
+    }
+  }
+  prop_compose! {
+    pub fn new_p2p_message()(msg_id in new_p2p_msg_id(), user_id in new_p2p_user_id(), op in new_operation()) -> P2pMessage {
+      P2pMessage { msg_id, user_id, op }
     }
   }
 }
@@ -397,13 +402,13 @@ mod serde_impl {
 
       proptest! {
         #[test]
-        fn test_serde_p2p_id(p2p_id in new_p2p_id()) {
+        fn test_serde_p2p_id(msg_id in new_p2p_msg_id()) {
           let protobuf =
-            serde_mux::Protobuf::<P2pMessageId, proto::P2pMessageId>::new(p2p_id.clone());
+            serde_mux::Protobuf::<P2pMessageId, proto::P2pMessageId>::new(msg_id.clone());
           let buf: Box<[u8]> = protobuf.serialize();
           let resurrected =
             serde_mux::Protobuf::<P2pMessageId, proto::P2pMessageId>::deserialize(&buf).unwrap();
-          prop_assert_eq!(p2p_id, resurrected);
+          prop_assert_eq!(msg_id, resurrected);
         }
       }
     }
@@ -491,13 +496,13 @@ mod serde_impl {
 
       proptest! {
         #[test]
-        fn test_serde_p2p_id(p2p_id in new_p2p_id()) {
+        fn test_serde_p2p_id(user_id in new_p2p_user_id()) {
           let protobuf =
-            serde_mux::Protobuf::<P2pParticipantId, proto::P2pParticipantId>::new(p2p_id.clone());
+            serde_mux::Protobuf::<P2pParticipantId, proto::P2pParticipantId>::new(user_id.clone());
           let buf: Box<[u8]> = protobuf.serialize();
           let resurrected =
             serde_mux::Protobuf::<P2pParticipantId, proto::P2pParticipantId>::deserialize(&buf).unwrap();
-          prop_assert_eq!(p2p_id, resurrected);
+          prop_assert_eq!(user_id, resurrected);
         }
       }
     }

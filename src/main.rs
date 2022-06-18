@@ -143,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
               p2p::P2pSendResult {},
               p2p_client
                 .propagate(p2p::P2pMessage {
-                  msg_id: p2p::P2pMessageId::default(),
+                  msg_id: p2p::P2pMessageId::new(),
                   user_id: p2p_client.receive_params().user_id,
                   op: op.clone(),
                 })

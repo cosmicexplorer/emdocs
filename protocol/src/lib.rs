@@ -30,6 +30,7 @@ pub mod buffers;
 pub mod error;
 pub mod messages;
 pub mod p2p;
+pub mod state;
 pub mod transforms;
 
 pub use error::Error;

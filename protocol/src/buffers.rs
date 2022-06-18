@@ -25,7 +25,7 @@
 //! use serde_mux::{traits::*, Protobuf};
 //! use emdocs_protocol::buffers::*;
 //!
-//! let buf = BufferId::default();
+//! let buf = BufferId::new();
 //! let buf_proto = Protobuf::<BufferId, proto::BufferId>::new(buf.clone());
 //! let bytes = buf_proto.serialize();
 //! let buf_serde = Protobuf::<BufferId, proto::BufferId>::deserialize(&bytes)?;
@@ -68,37 +68,13 @@ pub struct BufferId {
   pub uuid: Uuid,
 }
 
-impl Default for BufferId {
-  fn default() -> Self {
+impl BufferId {
+  pub fn new() -> Self {
     Self {
       uuid: Uuid::new_v4(),
     }
   }
 }
-
-/* TODO: */
-/* (1) maintain a list of all lines of text in the buffer, along with their checksums & covered
- *     regions */
-/* (2) every time a line is modified, update its checksum + region */
-/* (3) if a newline is deleted or inserted, calculate new adjacent lines, regions, & checksums */
-/* (4) when a sync process fails, obtain the minimum sequence of hashed line insertions/deletions to
- *     apply */
-/* (5) TODO: figure out how to broadcast synced lines. rebroadcast them all periodically? LRU?
- *     MRU? */
-/* sync negotiation: */
-/* - A provides a list of "trial lines" with indices and checksums to B. */
-/* - B provides a response of which checksums weren't found. */
-/*   - If B found any such lines, then B pauses receiving any new operations for that buffer
- *     momentarily. */
-/* - A provides the N previous/successive lines from each mismatched line from B. */
-/* - B reports the *line number intervals* which didn't match, so A can provide more
- *   previous/successive lines necessary for B to obtain the whole extent of non-matching
- *   lines. Note that there needs to be a sentinel value for the final line from A being the end of
- *   the buffer. */
-/* - [A & B repeat the above process until the non-matching intervals have been closed in on.] */
-/* - A then sends all of the line contents according to all the checksums B doesn't have. */
-/* - B applies all the changes to the line contents as a single edit. */
-/* - B then unpauses receiving operations for the buffer. */
 
 #[cfg(test)]
 pub mod proptest_strategies {

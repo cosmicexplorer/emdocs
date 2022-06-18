@@ -32,7 +32,7 @@
 //! let insert = Insert { contents: "hey".to_string() };
 //! let edit = Edit { point: Point::default(), payload: EditPayload::insert(insert) };
 //! let op = Operation {
-//!   source: BufferId::default(),
+//!   source: BufferId::new(),
 //!   transform: Transform { r#type: TransformType::edit(edit) },
 //! };
 //! let op_proto = Protobuf::<Operation, proto::Operation>::new(op.clone());
@@ -148,20 +148,9 @@ pub mod proptest_strategies {
       op
     }
   }
-  prop_compose! {
-    pub fn new_remote_client()(ip_address in r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+") -> RemoteClient {
-      RemoteClient { ip_address }
-    }
-  }
-  prop_compose! {
-    pub fn new_buffer_association()(buffer_id in new_buffer_id(), remote in new_remote_client()) -> BufferAssociation {
-      BufferAssociation { buffer_id, remote }
-    }
-  }
   pub fn new_ide_msg() -> impl Strategy<Value=IDEMessage> {
     prop_oneof![
       new_operation().prop_map(IDEMessage::op),
-      new_buffer_association().prop_map(IDEMessage::link),
     ]
   }
 }

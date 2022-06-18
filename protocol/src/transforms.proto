@@ -16,7 +16,7 @@ message Insert {
 /* Delete some distance from point. */
 message Delete {
   /* Number of *successive* chars to delete. */
-  optional uint32 distance = 1;
+  optional uint64 distance = 1;
 }
 
 /* A location within a buffer.
