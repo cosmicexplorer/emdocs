@@ -131,7 +131,7 @@ impl InternedTexts {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionIndex(pub usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,10 +140,19 @@ pub struct Buffer {
   pub lines: Vec<TextChecksum>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InsertionIndex(pub usize);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct WithinSectionIndex(pub usize);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DeletionRange {
+  pub beg: InsertionIndex,
+  pub end: InsertionIndex,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex {
   pub location: usize,
   pub length: usize,
@@ -325,6 +334,51 @@ impl Buffer {
       .collect();
   }
 
+  fn get_section(&self, si: &SectionIndex) -> &TextChecksum { &self.lines[si.0] }
+
+  fn final_section(&self) -> SectionIndex {
+    assert!(!self.lines.is_empty());
+    SectionIndex(self.lines.len() - 1)
+  }
+
+  fn locate_within_section(&self, at: InsertionIndex) -> (SectionIndex, WithinSectionIndex) {
+    /* TODO: make this faster! */
+    let InsertionIndex(at) = at;
+    dbg!(at);
+    let mut cur_location: usize = 0;
+    let mut found_section: Option<(SectionIndex, WithinSectionIndex)> = None;
+    for (section_index, checksum) in self.lines.iter().enumerate() {
+      dbg!(cur_location);
+      assert!(cur_location <= at);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      if cur_location + checksum.length + 1 > at {
+        let within_section = at - cur_location;
+        found_section = Some((
+          SectionIndex(section_index),
+          WithinSectionIndex(within_section),
+        ));
+        break;
+      } else {
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        cur_location += checksum.length + 1;
+      }
+    }
+    found_section.unwrap_or_else(|| {
+      if at > cur_location {
+        unreachable!(
+          "tried to insert at {}, when max position in buffer was {}",
+          at, cur_location
+        );
+      }
+      assert_eq!(at, cur_location);
+      let final_section = self.final_section();
+      (
+        final_section,
+        WithinSectionIndex(self.get_section(&final_section).length),
+      )
+    })
+  }
+
   /// ???
   ///
   ///```
@@ -348,46 +402,15 @@ impl Buffer {
   ///```
   pub fn insert_at(&mut self, at: InsertionIndex, s: &str) {
     /* TODO: make this faster! */
-    let InsertionIndex(at) = at;
-    dbg!(at);
-    let mut cur_location: usize = 0;
-    let mut found_section: Option<(SectionIndex, usize)> = None;
-    for (section_index, checksum) in self.lines.iter().enumerate() {
-      dbg!(cur_location);
-      assert!(cur_location <= at);
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      if cur_location + checksum.length + 1 > at {
-        let within_section = at - cur_location;
-        found_section = Some((SectionIndex(section_index), within_section));
-        break;
-      } else {
-        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-        cur_location += checksum.length + 1;
-      }
-    }
-    let (section_index, within_section) = found_section.unwrap_or_else(|| {
-      if at > cur_location {
-        unreachable!(
-          "tried to insert at {}, when max position in buffer was {}",
-          at, cur_location
-        );
-      }
-      assert_eq!(at, cur_location);
-      assert!(!self.lines.is_empty());
-      let final_section = self.lines.len() - 1;
-      (
-        SectionIndex(final_section),
-        self.lines[final_section].length,
-      )
-    });
+    let (section_index, within_section) = self.locate_within_section(at);
     let current_line = &self
       .interns
-      .get_no_eq_check(&self.lines[section_index.0])
+      .get_no_eq_check(self.get_section(&section_index))
       .contents;
     let new_line_string = [
-      &current_line[..within_section],
+      &current_line[..within_section.0],
       s,
-      &current_line[within_section..],
+      &current_line[within_section.0..],
     ]
     .concat();
     self.merge_into_at(Self::tokenize(&new_line_string), section_index);
