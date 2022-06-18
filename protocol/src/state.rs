@@ -707,3 +707,108 @@ impl BufferMapping {
     Ok(())
   }
 }
+
+#[cfg(test)]
+pub mod proptest_strategies {
+  use super::*;
+  use crate::{buffers::proptest_strategies::*, transforms::proptest_strategies::*};
+
+  use proptest::{prelude::*, strategy::Strategy};
+
+  prop_compose! {
+    pub fn non_delimited_string(str_len: usize)
+      /* TODO: assuming \n is delimiter!!! */
+      (in_between in prop::string::string_regex(&format!(r"[^\n]{{0,{}}}", str_len)).unwrap())
+      (in_between in Just(in_between))
+       -> String {
+        in_between
+      }
+  }
+  prop_compose! {
+    pub fn delimiter_indices(s: String, newline_factor: f64)
+      (mut indices in prop::collection::vec(
+        0..s.len(),
+        1..((s.len() as f64 / newline_factor).floor() as i32) as usize))
+       -> Vec<usize> {
+        indices.sort_unstable();
+        let mut prior_non_char_boundary: Option<usize> = None;
+        let mut ret = Vec::new();
+        for ind in indices.into_iter() {
+          if let Some(prior_non_char_boundary) = prior_non_char_boundary {
+            for new_index in (prior_non_char_boundary + 1)..ind {
+              if s.is_char_boundary(new_index) {
+                ret.push(new_index);
+              }
+            }
+          }
+          prior_non_char_boundary = if s.is_char_boundary(ind) {
+            ret.push(ind);
+            None
+          } else {
+            Some(ind)
+          }
+        }
+        if let Some(prior_non_char_boundary) = prior_non_char_boundary {
+          for new_index in (prior_non_char_boundary + 1)..s.len() {
+            if s.is_char_boundary(new_index) {
+              ret.push(new_index);
+            }
+          }
+        }
+        ret
+    }
+  }
+  pub fn delimited_input(s: &str, indices: Vec<usize>) -> String {
+    let mut buf = String::new();
+    let mut last_start: usize = 0;
+    for ind in indices.into_iter() {
+      assert!(ind <= s.len());
+      buf.push_str(&s[last_start..ind]);
+      /* TODO: assuming \n is delimiter!!! */
+      buf.push('\n');
+      last_start = ind;
+    }
+    buf.push_str(&s[last_start..]);
+    buf
+  }
+  prop_compose! {
+    pub fn string_with_indices(str_len: usize, newline_factor: f64)
+      (in_between in non_delimited_string(str_len))
+      (indices in delimiter_indices(in_between.clone(), newline_factor),
+       in_between in Just(in_between))
+       -> (String, Vec<usize>) {
+        (in_between, indices)
+      }
+  }
+  /* prop_compose! { */
+  /*   pub fn new_buffer()(contents in any::<String>()) -> Buffer { */
+  /*     Buffer::tokenize(&contents).expect("failed to tokenize buffer") */
+  /*   } */
+  /* } */
+}
+
+#[cfg(test)]
+mod test {
+  use super::{proptest_strategies::*, *};
+
+  use proptest::prelude::*;
+
+  proptest! {
+    #[test]
+    fn test_tokenize_newlines((s, indices) in string_with_indices(5000, 5.0)) {
+        let input = delimited_input(&s, indices.clone());
+        let expected: Vec<TokenIndex> = indices.into_iter().enumerate().map(|(ind, loc)| {
+          TokenIndex {
+            /* NB: Have to add +ind because with each token-delimited (newline) we push the location
+             * of the inserted token one further to the right. It would be 2*ind if the delimiter
+             * was 2 chars long. */
+            location: loc + ind,
+            /* TODO: assuming \n is delimiter!!! */
+            length: 1,
+
+          }
+        }).collect();
+        prop_assert_eq!(NewlineTokenizer.tokenize(&input), expected);
+      }
+  }
+}
