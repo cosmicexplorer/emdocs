@@ -45,12 +45,12 @@
 //! - B applies all the changes to the line contents as a single edit.
 //! - B then unpauses receiving operations for the buffer.
 
+use crate::{buffers::BufferId, transforms};
+
+use async_lock::RwLock;
 use indexmap::IndexMap;
 
-use std::{
-  collections::{hash_map::DefaultHasher, BTreeMap},
-  hash::Hasher,
-};
+use std::{collections::hash_map::DefaultHasher, hash::Hasher, sync::Arc};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TextChecksum {
@@ -125,6 +125,7 @@ impl InternedTexts {
         text_section.num_occurrences
       })
       .expect("expected checksum to exist to be decremented");
+    /* If the buffer has no more instances of this string, remove it from the interns list. */
     if num_occurrences == 0 {
       assert!(self.interned_text_sections.remove(&checksum).is_some());
     }
@@ -149,14 +150,39 @@ impl SectionRange {
   pub fn single(si: SectionIndex) -> Self { Self::new(si, si) }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Buffer {
-  pub interns: InternedTexts,
-  pub lines: Vec<TextChecksum>,
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InsertionIndex(pub usize);
+
+impl From<transforms::Point> for InsertionIndex {
+  fn from(value: transforms::Point) -> Self {
+    let transforms::Point { code_point_index } = value;
+    Self(
+      code_point_index
+        .try_into()
+        .expect("cp index convertible from u64 to usize"),
+    )
+  }
+}
+
+impl From<InsertionIndex> for transforms::Point {
+  fn from(value: InsertionIndex) -> Self {
+    let InsertionIndex(index) = value;
+    Self {
+      code_point_index: index
+        .try_into()
+        .expect("insertion index convertible from usize to u64"),
+    }
+  }
+}
+
+impl InsertionIndex {
+  pub fn delete_range(&self, distance: usize) -> DeletionRange {
+    DeletionRange {
+      beg: self.clone(),
+      end: InsertionIndex(self.0 + distance),
+    }
+  }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WithinSectionIndex(pub usize);
@@ -230,6 +256,12 @@ impl Tokenizer for NewlineTokenizer {
     }
     tokens
   }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Buffer {
+  pub interns: InternedTexts,
+  pub lines: Vec<TextChecksum>,
 }
 
 impl Buffer {
@@ -329,13 +361,9 @@ impl Buffer {
       lines.push(checksum);
       last_token_index = location + length;
     }
-    /* If we ended on a token, then the last line is empty. */
-    let cur_line = if last_token_index == input.len() {
-      ""
-    } else {
-      /* If there were no tokens, then this is the whole string. */
-      &input[last_token_index..]
-    };
+    /* If we ended on a token, then the last line is empty. If there were no tokens, then this is
+     * the whole string. */
+    let cur_line = &input[last_token_index..];
     let checksum = interns.increment(cur_line);
     lines.push(checksum);
     Self { interns, lines }
@@ -485,6 +513,22 @@ impl Buffer {
   ///```
   /// use emdocs_protocol::state::*;
   ///
+  /// let mut ab_c = Buffer::tokenize("ab\nc");
+  /// ab_c.replace("d\nef");
+  /// let d_ef = Buffer::tokenize("d\nef");
+  /// assert_eq!(ab_c, d_ef);
+  ///```
+  pub fn replace(&mut self, s: &str) {
+    let Self { interns, lines } = Self::tokenize(s);
+    self.interns = interns;
+    self.lines = lines;
+  }
+
+  /// ???
+  ///
+  ///```
+  /// use emdocs_protocol::state::*;
+  ///
   /// let mut abc = Buffer::tokenize("ab\nc");
   /// abc.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(0) });
   /// let b_c = Buffer::tokenize("b\nc");
@@ -510,5 +554,59 @@ impl Buffer {
       Self::tokenize(&new_line_string),
       SectionRange::new(beg.section, end.section),
     )
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct BufferMapping {
+  pub live_buffers: Arc<RwLock<IndexMap<BufferId, Arc<RwLock<Buffer>>>>>,
+}
+
+impl BufferMapping {
+  pub fn new() -> Self {
+    Self {
+      live_buffers: Arc::new(RwLock::new(IndexMap::new())),
+    }
+  }
+
+  pub async fn initialize_buffer(&self, id: BufferId, contents: &str) {
+    assert!(!self.live_buffers.read().await.contains_key(&id));
+    self
+      .live_buffers
+      .write()
+      .await
+      .entry(id)
+      .or_insert_with(|| Arc::new(RwLock::new(Buffer::tokenize(contents))));
+  }
+
+  pub async fn apply_transform(&self, id: BufferId, transform: transforms::Transform) {
+    let transforms::Transform { r#type } = transform;
+    let buffer = self
+      .live_buffers
+      .read()
+      .await
+      .get(&id)
+      .expect("expected buffer to exist")
+      .clone();
+    let mut buffer = buffer.write().await;
+    match r#type {
+      transforms::TransformType::edit(transforms::Edit { point, payload }) => {
+        let insertion_index: InsertionIndex = point.into();
+        match payload {
+          transforms::EditPayload::insert(transforms::Insert { contents }) => {
+            buffer.insert_at(insertion_index, &contents);
+          },
+          transforms::EditPayload::delete(transforms::Delete { distance }) => {
+            let deletion_range = insertion_index.delete_range(
+              distance
+                .try_into()
+                .expect("distance should have been convertible to usize"),
+            );
+            buffer.delete_at(deletion_range);
+          },
+        }
+      },
+      transforms::TransformType::sync(sync) => todo!("sync: {:?}", sync),
+    }
   }
 }

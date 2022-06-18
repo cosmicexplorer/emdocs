@@ -85,7 +85,7 @@ pub struct Point {
 impl Default for Point {
   fn default() -> Self {
     Self {
-      code_point_index: 1,
+      code_point_index: 0,
     }
   }
 }
