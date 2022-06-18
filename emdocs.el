@@ -55,6 +55,11 @@
   "???")
 
 
+;; Globals
+(defvar emdocs-buffer-mapping nil
+  "???")
+
+
 ;; Logic
 (defun emdocs--interaction-filter (proc string)
   (when (process-live-p proc)
@@ -65,7 +70,12 @@
         (let* ((op (alist-get 'op msg))
                (source (alist-get 'source op))
                (transform (alist-get 'transform op)))
-          (message "source: %s" (alist-get 'uuid source))
+          (--> (alist-get 'uuid source)
+               (format ":%s" it)
+               (message "%s" it)
+               (intern it)
+               (plist-get emdocs-buffer-mapping it)
+               (message "source: %s" it))
           (message "transform: %S" transform))))))
 
 (defun emdocs--create-buffer-id (source)
@@ -166,6 +176,10 @@
 (defun emdocs--setup-buffer-idempotent ()
   (unless emdocs-buffer-id
     (setq-local emdocs-buffer-id (uuid-string)))
+  (setq emdocs-buffer-mapping
+        (--> (format ":%s" emdocs-buffer-id)
+             (intern it)
+             (plist-put emdocs-buffer-mapping it (current-buffer))))
   (add-hook 'after-change-functions #'emdocs--after-change-function nil t)
   (add-hook 'before-change-functions #'emdocs--before-change-function nil t))
 
