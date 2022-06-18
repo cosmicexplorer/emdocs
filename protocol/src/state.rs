@@ -233,20 +233,20 @@ impl Tokenizer for NewlineTokenizer {
 }
 
 impl Buffer {
-  pub fn dump(self) -> String {
-    let Self { interns, lines } = self;
-    let mut ret = String::new();
-    let n = lines.len();
-    for (ind, checksum) in lines.into_iter().enumerate() {
-      let text_section = interns.get_no_eq_check(&checksum);
-      ret.push_str(&text_section.contents);
-      if ind < n - 1 {
-        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-        ret.push_str("\n");
-      }
-    }
-    ret
-  }
+  /* pub fn dump(self) -> String { */
+  /*   let Self { interns, lines } = self; */
+  /*   let mut ret = String::new(); */
+  /*   let n = lines.len(); */
+  /*   for (ind, checksum) in lines.into_iter().enumerate() { */
+  /*     let text_section = interns.get_no_eq_check(&checksum); */
+  /*     ret.push_str(&text_section.contents); */
+  /*     if ind < n - 1 { */
+  /*       /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
+  /*       ret.push_str("\n"); */
+  /*     } */
+  /*   } */
+  /*   ret */
+  /* } */
 
   /// Tokenize a string into a buffer.
   ///
@@ -364,6 +364,12 @@ impl Buffer {
   /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(1)));
   /// let de_f = Buffer::tokenize("de\nf");
   /// assert_eq!(abc3, de_f);
+  ///
+  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng");
+  /// let f = Buffer::tokenize("f");
+  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(1), SectionIndex(2)));
+  /// let ab_f_g = Buffer::tokenize("ab\nf\ng");
+  /// assert_eq!(ab_c_def_g, ab_f_g);
   ///```
   pub fn merge_into_at(&mut self, other: Self, at: SectionRange) {
     /* TODO: make this faster! */
@@ -371,7 +377,6 @@ impl Buffer {
     for (checksum, text_section) in interns.interned_text_sections.into_iter() {
       assert_eq!(checksum, self.interns.increment(&text_section.contents));
     }
-    dbg!(at);
     assert!(
       at.end.0 < self.lines.len(),
       "cannot merge past end of lines!"
@@ -381,8 +386,6 @@ impl Buffer {
       let si = SectionIndex(ind);
       self.interns.decrement(*self.get_section(&si));
     }
-    dbg!(&self.lines[..at.start.0]);
-    dbg!(&self.lines[at.end.0 + 1..]);
     self.lines = self.lines[..at.start.0]
       .iter()
       .cloned()
@@ -401,11 +404,9 @@ impl Buffer {
   fn locate_within_section(&self, at: InsertionIndex) -> FoundSection {
     /* TODO: make this faster! */
     let InsertionIndex(at) = at;
-    dbg!(at);
     let mut cur_location: usize = 0;
     let mut found_section: Option<FoundSection> = None;
     for (section_index, checksum) in self.lines.iter().enumerate() {
-      dbg!(cur_location);
       assert!(cur_location <= at);
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       if cur_location + checksum.length + 1 > at {
@@ -423,7 +424,7 @@ impl Buffer {
     found_section.unwrap_or_else(|| {
       if at > cur_location {
         unreachable!(
-          "tried to insert at {}, when max position in buffer was {}",
+          "tried to insert/delete at {}, when max position in buffer was {}",
           at, cur_location
         );
       }
@@ -479,5 +480,35 @@ impl Buffer {
     );
   }
 
-  /* pub fn delete_at(&mut self, range: DeletionRange) */
+  /// ???
+  ///
+  ///```
+  /// use emdocs_protocol::state::*;
+  ///
+  /// let mut abc = Buffer::tokenize("ab\nc");
+  /// abc.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(0) });
+  /// let b_c = Buffer::tokenize("b\nc");
+  /// assert_eq!(abc, b_c);
+  ///
+  /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng");
+  /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(6) });
+  /// let ab_f_g = Buffer::tokenize("ab\nf\ng");
+  /// assert_eq!(ab_c_def_g, ab_f_g);
+  ///```
+  pub fn delete_at(&mut self, range: DeletionRange) {
+    let DeletionResult { beg, end } = self.locate_deletion_range(range);
+    let prefix = &self
+      .interns
+      .get_no_eq_check(self.get_section(&beg.section))
+      .contents[..beg.within.0];
+    let suffix = &self
+      .interns
+      .get_no_eq_check(self.get_section(&end.section))
+      .contents[end.within.0 + 1..];
+    let new_line_string = [prefix, suffix].concat();
+    self.merge_into_at(
+      Self::tokenize(&new_line_string),
+      SectionRange::new(beg.section, end.section),
+    )
+  }
 }
