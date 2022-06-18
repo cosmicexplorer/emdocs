@@ -92,6 +92,32 @@
 (defun emdocs--create-ide-message (op)
   `(:op ,op))
 
+(defun emdocs--create-region (start end)
+  `(:start ,start :end ,end))
+
+(defun emdocs--create-sync-checksum (checksum)
+  `(:checksum (:checksum ,checksum)))
+
+(defun emdocs--create-sync-contents (contents)
+  `(:contents (:contents ,contents)))
+
+(defun emdocs--create-sync-region (region type)
+  `(:sync (:region ,region :type ,type)))
+
+(defun emdocs--sync-whole-buffer ()
+  (cl-assert (= 1 (point-min)) t)
+  (let* ((source (emdocs--create-buffer-id emdocs-buffer-id))
+         (beg (emdocs--create-point (point-min)))
+         (end (emdocs--create-point (point-max)))
+         (region (emdocs--create-region beg end)))
+    (->> (buffer-string)
+         (emdocs--create-sync-contents)
+         (emdocs--create-sync-region region)
+         (emdocs--create-transform)
+         (emdocs--create-operation source)
+         (emdocs--create-ide-message)
+         (emdocs--write-stdin))))
+
 (defun emdocs--write-stdin (x)
   ;; TODO: consider batching these changes and then writing them when emacs is idle? Only necessary
   ;; if latency is currently insufficient.
@@ -171,6 +197,7 @@
       (progn
         (emdocs--setup-buffer-idempotent)
         (emdocs--initiate-process-idempotent)
+        (emdocs--sync-whole-buffer)
         t)
     nil))
 

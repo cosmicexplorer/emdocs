@@ -26,7 +26,7 @@ message Point {
   /* Number of unicode code points from the start of the buffer.
    *
    * TODO: use bignum? */
-  optional uint32 code_point_index = 1;
+  optional uint64 code_point_index = 1;
 }
 
 /* Variants of buffer edits. */
@@ -42,10 +42,36 @@ message Edit {
   }
 }
 
+/* A region within a buffer.
+ *
+ * Analogous to the "region" in emacs. */
+message Region {
+  optional Point start = 1;
+  optional Point end = 2;
+}
+
+message SyncChecksum {
+  optional bytes checksum = 2;
+}
+
+message SyncContents {
+  optional string contents = 1;
+}
+
+/* Buffer sync operations (coalesced form of edits). */
+message SyncRegion {
+  optional Region region = 1;
+  oneof type {
+    SyncChecksum checksum = 2;
+    SyncContents contents = 3;
+  }
+}
+
 message Transform {
   /* The types of transformations. */
   oneof type {
     /* Editing a buffer. */
     Edit edit = 1;
+    SyncRegion sync = 2;
   }
 }

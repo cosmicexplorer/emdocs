@@ -79,7 +79,7 @@ pub struct Delete {
   Debug, Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
 )]
 pub struct Point {
-  pub code_point_index: u32,
+  pub code_point_index: u64,
 }
 
 impl Default for Point {
@@ -105,9 +105,41 @@ pub struct Edit {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Region {
+  pub start: Point,
+  pub end: Point,
+}
+
+pub const CHECKSUM_LENGTH: usize = 32;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SyncChecksum {
+  pub checksum: [u8; CHECKSUM_LENGTH],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SyncContents {
+  pub contents: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[allow(non_camel_case_types)]
+pub enum SyncRegionType {
+  checksum(SyncChecksum),
+  contents(SyncContents),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SyncRegion {
+  pub region: Region,
+  pub r#type: SyncRegionType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[allow(non_camel_case_types)]
 pub enum TransformType {
   edit(Edit),
+  sync(SyncRegion),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -331,6 +363,175 @@ mod serde_impl {
     }
   }
 
+  mod region {
+    use super::*;
+
+    impl serde_mux::Schema for proto::Region {
+      type Source = Region;
+    }
+
+    impl TryFrom<proto::Region> for Region {
+      type Error = TransformError;
+
+      fn try_from(proto_message: proto::Region) -> Result<Self, TransformError> {
+        let proto::Region { start, end } = proto_message.clone();
+        let start: Point = start
+          .ok_or_else(|| {
+            TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "start",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        let end: Point = end
+          .ok_or_else(|| {
+            TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "end",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        Ok(Self { start, end })
+      }
+    }
+
+    impl From<Region> for proto::Region {
+      fn from(value: Region) -> Self {
+        let Region { start, end } = value;
+        Self {
+          start: Some(start.into()),
+          end: Some(end.into()),
+        }
+      }
+    }
+  }
+
+  mod sync_checksum {
+    use super::*;
+
+    impl serde_mux::Schema for proto::SyncChecksum {
+      type Source = SyncChecksum;
+    }
+
+    impl TryFrom<proto::SyncChecksum> for SyncChecksum {
+      type Error = TransformError;
+
+      fn try_from(proto_message: proto::SyncChecksum) -> Result<Self, TransformError> {
+        let proto::SyncChecksum { checksum } = proto_message.clone();
+        let checksum = checksum
+          .ok_or_else(|| {
+            TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "checksum",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()
+          .map_err(|e| {
+            serde_mux::ProtobufCodingFailure::SliceLength(CHECKSUM_LENGTH, format!("{:?}", e))
+          })?;
+        Ok(Self { checksum })
+      }
+    }
+
+    impl From<SyncChecksum> for proto::SyncChecksum {
+      fn from(value: SyncChecksum) -> Self {
+        let SyncChecksum { checksum } = value;
+        Self {
+          checksum: Some(checksum.into()),
+        }
+      }
+    }
+  }
+
+  mod sync_contents {
+    use super::*;
+
+    impl serde_mux::Schema for proto::SyncContents {
+      type Source = SyncContents;
+    }
+
+    impl TryFrom<proto::SyncContents> for SyncContents {
+      type Error = TransformError;
+
+      fn try_from(proto_message: proto::SyncContents) -> Result<Self, TransformError> {
+        let proto::SyncContents { contents } = proto_message.clone();
+        let contents = contents.ok_or_else(|| {
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+            "contents",
+            format!("{:?}", proto_message),
+          ))
+        })?;
+        Ok(Self { contents })
+      }
+    }
+
+    impl From<SyncContents> for proto::SyncContents {
+      fn from(value: SyncContents) -> Self {
+        let SyncContents { contents } = value;
+        Self {
+          contents: Some(contents.into()),
+        }
+      }
+    }
+  }
+
+  mod sync_region {
+    use super::*;
+
+    impl serde_mux::Schema for proto::SyncRegion {
+      type Source = SyncRegion;
+    }
+
+    impl TryFrom<proto::SyncRegion> for SyncRegion {
+      type Error = TransformError;
+
+      fn try_from(proto_message: proto::SyncRegion) -> Result<Self, TransformError> {
+        let proto::SyncRegion { region, r#type } = proto_message.clone();
+        let region = region
+          .ok_or_else(|| {
+            TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+              "region",
+              format!("{:?}", proto_message),
+            ))
+          })?
+          .try_into()?;
+        let r#type = r#type.ok_or_else(|| {
+          TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
+            "type",
+            format!("{:?}", proto_message),
+          ))
+        })?;
+        let r#type = match r#type {
+          proto::sync_region::Type::Checksum(sync_checksum) => {
+            SyncRegionType::checksum(sync_checksum.try_into()?)
+          },
+          proto::sync_region::Type::Contents(sync_contents) => {
+            SyncRegionType::contents(sync_contents.try_into()?)
+          },
+        };
+        Ok(Self { region, r#type })
+      }
+    }
+
+    impl From<SyncRegion> for proto::SyncRegion {
+      fn from(value: SyncRegion) -> Self {
+        let SyncRegion { region, r#type } = value;
+        let r#type = match r#type {
+          SyncRegionType::checksum(sync_checksum) => {
+            proto::sync_region::Type::Checksum(sync_checksum.into())
+          },
+          SyncRegionType::contents(sync_contents) => {
+            proto::sync_region::Type::Contents(sync_contents.into())
+          },
+        };
+        Self {
+          region: Some(region.into()),
+          r#type: Some(r#type),
+        }
+      }
+    }
+  }
+
   mod transform {
     use super::*;
 
@@ -351,6 +552,7 @@ mod serde_impl {
         })?;
         let r#type = match r#type {
           proto::transform::Type::Edit(edit) => TransformType::edit(edit.try_into()?),
+          proto::transform::Type::Sync(sync) => TransformType::sync(sync.try_into()?),
         };
         Ok(Self { r#type })
       }
@@ -361,6 +563,7 @@ mod serde_impl {
         let Transform { r#type } = value;
         let r#type = match r#type {
           TransformType::edit(edit) => proto::transform::Type::Edit(edit.into()),
+          TransformType::sync(sync) => proto::transform::Type::Sync(sync.into()),
         };
         Self {
           r#type: Some(r#type),
