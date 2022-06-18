@@ -90,6 +90,13 @@ impl InternedTexts {
     }
   }
 
+  pub fn get_no_eq_check(&self, checksum: &TextChecksum) -> &TextSection {
+    self
+      .interned_text_sections
+      .get(checksum)
+      .expect("checksum must exist")
+  }
+
   pub fn increment(&mut self, text: &str) -> TextChecksum {
     let checksum = TextChecksum::extract(text);
     self
@@ -132,6 +139,9 @@ pub struct Buffer {
   pub interns: InternedTexts,
   pub lines: Vec<TextChecksum>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct InsertionIndex(pub usize);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TokenIndex {
@@ -315,16 +325,71 @@ impl Buffer {
       .collect();
   }
 
-  /* pub fn insert_at(&mut self, at: usize, s: &str) { */
-  /*   /\* TODO: make this faster! *\/ */
-  /*   let mut cur_location: usize = 0; */
-  /*   for checksum in self.lines.iter() { */
-  /*     if cur_location + checksum.length > at { */
-  /*       let line_to_insert_at = self; */
-  /*     } else { */
-  /*       /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
-  /*       cur_location += checksum.length + 1; */
-  /*     } */
-  /*   } */
-  /* } */
+  /// ???
+  ///
+  ///```
+  /// use emdocs_protocol::state::*;
+  ///
+  /// let mut abc = Buffer::tokenize("ab\nc");
+  /// let mut abc2 = abc.clone();
+  /// let mut abc3 = abc.clone();
+  ///
+  /// abc.insert_at(InsertionIndex(2), "de\nf");
+  /// let abde_f_c = Buffer::tokenize("abde\nf\nc");
+  /// assert_eq!(abc, abde_f_c);
+  ///
+  /// abc2.insert_at(InsertionIndex(0), "de\nf");
+  /// let de_fab_c = Buffer::tokenize("de\nfab\nc");
+  /// assert_eq!(abc2, de_fab_c);
+  ///
+  /// abc3.insert_at(InsertionIndex(3), "de\nf");
+  /// let ab_de_fc = Buffer::tokenize("ab\nde\nfc");
+  /// assert_eq!(abc3, ab_de_fc);
+  ///```
+  pub fn insert_at(&mut self, at: InsertionIndex, s: &str) {
+    /* TODO: make this faster! */
+    let InsertionIndex(at) = at;
+    dbg!(at);
+    let mut cur_location: usize = 0;
+    let mut found_section: Option<(SectionIndex, usize)> = None;
+    for (section_index, checksum) in self.lines.iter().enumerate() {
+      dbg!(cur_location);
+      assert!(cur_location <= at);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      if cur_location + checksum.length + 1 > at {
+        let within_section = at - cur_location;
+        found_section = Some((SectionIndex(section_index), within_section));
+        break;
+      } else {
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        cur_location += checksum.length + 1;
+      }
+    }
+    let (section_index, within_section) = found_section.unwrap_or_else(|| {
+      if at > cur_location {
+        unreachable!(
+          "tried to insert at {}, when max position in buffer was {}",
+          at, cur_location
+        );
+      }
+      assert_eq!(at, cur_location);
+      assert!(!self.lines.is_empty());
+      let final_section = self.lines.len() - 1;
+      (
+        SectionIndex(final_section),
+        self.lines[final_section].length,
+      )
+    });
+    let current_line = &self
+      .interns
+      .get_no_eq_check(&self.lines[section_index.0])
+      .contents;
+    let new_line_string = [
+      &current_line[..within_section],
+      s,
+      &current_line[within_section..],
+    ]
+    .concat();
+    self.merge_into_at(Self::tokenize(&new_line_string), section_index);
+  }
 }
