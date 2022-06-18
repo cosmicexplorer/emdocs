@@ -116,23 +116,38 @@ impl InternedTexts {
     checksum
   }
 
-  pub fn decrement(&mut self, checksum: &TextChecksum) {
+  pub fn decrement(&mut self, checksum: TextChecksum) {
     let num_occurrences = self
       .interned_text_sections
-      .get_mut(checksum)
+      .get_mut(&checksum)
       .map(|text_section| {
         text_section.num_occurrences -= 1;
         text_section.num_occurrences
       })
       .expect("expected checksum to exist to be decremented");
     if num_occurrences == 0 {
-      assert!(self.interned_text_sections.remove(checksum).is_some());
+      assert!(self.interned_text_sections.remove(&checksum).is_some());
     }
   }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionIndex(pub usize);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SectionRange {
+  pub start: SectionIndex,
+  pub end: SectionIndex,
+}
+
+impl SectionRange {
+  pub fn new(start: SectionIndex, end: SectionIndex) -> Self {
+    assert!(start <= end);
+    Self { start, end }
+  }
+
+  pub fn single(si: SectionIndex) -> Self { Self::new(si, si) }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
@@ -147,9 +162,21 @@ pub struct InsertionIndex(pub usize);
 pub struct WithinSectionIndex(pub usize);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FoundSection {
+  pub section: SectionIndex,
+  pub within: WithinSectionIndex,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DeletionRange {
   pub beg: InsertionIndex,
   pub end: InsertionIndex,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DeletionResult {
+  pub beg: FoundSection,
+  pub end: FoundSection,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -206,6 +233,21 @@ impl Tokenizer for NewlineTokenizer {
 }
 
 impl Buffer {
+  pub fn dump(self) -> String {
+    let Self { interns, lines } = self;
+    let mut ret = String::new();
+    let n = lines.len();
+    for (ind, checksum) in lines.into_iter().enumerate() {
+      let text_section = interns.get_no_eq_check(&checksum);
+      ret.push_str(&text_section.contents);
+      if ind < n - 1 {
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        ret.push_str("\n");
+      }
+    }
+    ret
+  }
+
   /// Tokenize a string into a buffer.
   ///
   ///```
@@ -308,29 +350,44 @@ impl Buffer {
   /// let def = Buffer::tokenize("de\nf");
   /// let mut abc2 = abc.clone();
   /// let def2 = def.clone();
+  /// let mut abc3 = abc.clone();
+  /// let def3 = def.clone();
   ///
-  /// abc.merge_into_at(def, SectionIndex(1));
-  /// let abcdef = Buffer::tokenize("ab\nde\nf");
-  /// assert_eq!(abc, abcdef);
+  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(1)));
+  /// let ab_de_f = Buffer::tokenize("ab\nde\nf");
+  /// assert_eq!(abc, ab_de_f);
   ///
-  /// abc2.merge_into_at(def2, SectionIndex(0));
-  /// let defabc = Buffer::tokenize("de\nf\nc");
-  /// assert_eq!(abc2, defabc);
+  /// abc2.merge_into_at(def2, SectionRange::single(SectionIndex(0)));
+  /// let de_f_c = Buffer::tokenize("de\nf\nc");
+  /// assert_eq!(abc2, de_f_c);
+  ///
+  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(1)));
+  /// let de_f = Buffer::tokenize("de\nf");
+  /// assert_eq!(abc3, de_f);
   ///```
-  pub fn merge_into_at(&mut self, other: Self, at: SectionIndex) {
+  pub fn merge_into_at(&mut self, other: Self, at: SectionRange) {
     /* TODO: make this faster! */
     let Self { interns, lines } = other;
     for (checksum, text_section) in interns.interned_text_sections.into_iter() {
       assert_eq!(checksum, self.interns.increment(&text_section.contents));
     }
-    let SectionIndex(at) = at;
-    assert!(at < self.lines.len(), "cannot merge past end of lines!");
-    self.interns.decrement(&self.lines[at]);
-    self.lines = self.lines[..at]
+    dbg!(at);
+    assert!(
+      at.end.0 < self.lines.len(),
+      "cannot merge past end of lines!"
+    );
+    /* Have to add + 1 to convert into noninclusive range, sigh. */
+    for ind in at.start.0..at.end.0 + 1 {
+      let si = SectionIndex(ind);
+      self.interns.decrement(*self.get_section(&si));
+    }
+    dbg!(&self.lines[..at.start.0]);
+    dbg!(&self.lines[at.end.0 + 1..]);
+    self.lines = self.lines[..at.start.0]
       .iter()
       .cloned()
       .chain(lines.into_iter())
-      .chain(self.lines[at + 1..].iter().cloned())
+      .chain(self.lines[at.end.0 + 1..].iter().cloned())
       .collect();
   }
 
@@ -341,22 +398,22 @@ impl Buffer {
     SectionIndex(self.lines.len() - 1)
   }
 
-  fn locate_within_section(&self, at: InsertionIndex) -> (SectionIndex, WithinSectionIndex) {
+  fn locate_within_section(&self, at: InsertionIndex) -> FoundSection {
     /* TODO: make this faster! */
     let InsertionIndex(at) = at;
     dbg!(at);
     let mut cur_location: usize = 0;
-    let mut found_section: Option<(SectionIndex, WithinSectionIndex)> = None;
+    let mut found_section: Option<FoundSection> = None;
     for (section_index, checksum) in self.lines.iter().enumerate() {
       dbg!(cur_location);
       assert!(cur_location <= at);
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       if cur_location + checksum.length + 1 > at {
         let within_section = at - cur_location;
-        found_section = Some((
-          SectionIndex(section_index),
-          WithinSectionIndex(within_section),
-        ));
+        found_section = Some(FoundSection {
+          section: SectionIndex(section_index),
+          within: WithinSectionIndex(within_section),
+        });
         break;
       } else {
         /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
@@ -372,11 +429,19 @@ impl Buffer {
       }
       assert_eq!(at, cur_location);
       let final_section = self.final_section();
-      (
-        final_section,
-        WithinSectionIndex(self.get_section(&final_section).length),
-      )
+      FoundSection {
+        section: final_section,
+        within: WithinSectionIndex(self.get_section(&final_section).length),
+      }
     })
+  }
+
+  fn locate_deletion_range(&self, range: DeletionRange) -> DeletionResult {
+    /* TODO: make this faster! */
+    let DeletionRange { beg, end } = range;
+    let beg = self.locate_within_section(beg);
+    let end = self.locate_within_section(end);
+    DeletionResult { beg, end }
   }
 
   /// ???
@@ -402,17 +467,17 @@ impl Buffer {
   ///```
   pub fn insert_at(&mut self, at: InsertionIndex, s: &str) {
     /* TODO: make this faster! */
-    let (section_index, within_section) = self.locate_within_section(at);
+    let FoundSection { section, within } = self.locate_within_section(at);
     let current_line = &self
       .interns
-      .get_no_eq_check(self.get_section(&section_index))
+      .get_no_eq_check(self.get_section(&section))
       .contents;
-    let new_line_string = [
-      &current_line[..within_section.0],
-      s,
-      &current_line[within_section.0..],
-    ]
-    .concat();
-    self.merge_into_at(Self::tokenize(&new_line_string), section_index);
+    let new_line_string = [&current_line[..within.0], s, &current_line[within.0..]].concat();
+    self.merge_into_at(
+      Self::tokenize(&new_line_string),
+      SectionRange::single(section),
+    );
   }
+
+  /* pub fn delete_at(&mut self, range: DeletionRange) */
 }
