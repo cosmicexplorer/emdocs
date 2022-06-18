@@ -74,14 +74,23 @@
 (defun emdocs--create-point (point)
   `(:code_point_index ,point))
 
-(defun emdocs--create-insert (point contents)
-  `(:point ,point :payload (:insert (:contents ,contents))))
+(defun emdocs--create-insert (contents)
+  `(:insert (:contents ,contents)))
 
-(defun emdocs--create-delete (point distance)
-  `(:point ,point :payload (:delete (:distance ,distance))))
+(defun emdocs--create-delete (distance)
+  `(:delete (:distance ,distance)))
 
-(defun emdocs--create-edit (source transform)
-  `(:op (:source ,source :transform (:type (:edit ,transform)))))
+(defun emdocs--create-edit (point payload)
+  `(:edit (:point ,point :payload ,payload)))
+
+(defun emdocs--create-transform (type)
+  `(:type ,type))
+
+(defun emdocs--create-operation (source transform)
+  `(:source ,source :transform ,transform))
+
+(defun emdocs--create-ide-message (op)
+  `(:op ,op))
 
 (defun emdocs--write-stdin (x)
   ;; TODO: consider batching these changes and then writing them when emacs is idle? Only necessary
@@ -109,16 +118,19 @@
   (when emdocs-mode
     (let ((source (emdocs--create-buffer-id emdocs-buffer-id))
           (point (emdocs--create-point beg)))
-      (let ((delete-op (unless (zerop prev-length)
-                         (emdocs--create-delete point prev-length)))
-            (insert-op (unless (= beg end)
+      (let ((delete-edit (unless (zerop prev-length)
+                         (emdocs--create-delete prev-length)))
+            (insert-edit (unless (= beg end)
                          (->> (buffer-substring beg end)
-                              (emdocs--create-insert point)))))
-        (cl-assert (or delete-op insert-op) t "every change must be an insert, delete, or both")
-        (cl-loop for op in `(,delete-op ,insert-op)
-                 when op
-                 do (->> op
-                         (emdocs--create-edit source)
+                              (emdocs--create-insert)))))
+        (cl-assert (or delete-edit insert-edit) t "every change must be an insert, delete, or both")
+        (cl-loop for edit in `(,delete-edit ,insert-edit)
+                 when edit
+                 do (->> edit
+                         (emdocs--create-edit point)
+                         (emdocs--create-transform)
+                         (emdocs--create-operation source)
+                         (emdocs--create-ide-message)
                          (emdocs--write-stdin)))))))
 
 (defun emdocs--before-change-function (beg end)
