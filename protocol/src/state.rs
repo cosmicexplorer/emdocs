@@ -47,7 +47,10 @@
 
 use indexmap::IndexMap;
 
-use std::{collections::hash_map::DefaultHasher, hash::Hasher};
+use std::{
+  collections::{hash_map::DefaultHasher, BTreeMap},
+  hash::Hasher,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TextChecksum {
@@ -72,10 +75,7 @@ impl TextChecksum {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TextSection {
   pub contents: String,
-}
-
-impl AsRef<str> for TextSection {
-  fn as_ref(&self) -> &str { self.contents.as_ref() }
+  pub num_occurrences: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,27 +90,42 @@ impl InternedTexts {
     }
   }
 
-  pub fn has(&self, checksum: &TextChecksum) -> bool {
-    self.interned_text_sections.contains_key(checksum)
-  }
-
-  pub fn add_if_new(&mut self, text: &str) -> TextChecksum {
+  pub fn increment(&mut self, text: &str) -> TextChecksum {
     let checksum = TextChecksum::extract(text);
-    if !self.has(&checksum) {
-      assert_eq!(
-        None,
-        self.interned_text_sections.insert(checksum, TextSection {
-          contents: text.to_string()
-        })
-      )
-    }
+    self
+      .interned_text_sections
+      .entry(checksum)
+      .and_modify(|text_section| {
+        assert_eq!(
+          text, &text_section.contents,
+          "we never expect a hash collision!!!!???"
+        );
+        text_section.num_occurrences += 1;
+      })
+      .or_insert_with(|| TextSection {
+        contents: text.to_string(),
+        num_occurrences: 1,
+      });
     checksum
   }
 
-  pub fn remove(&mut self, checksum: TextChecksum) {
-    assert!(self.interned_text_sections.remove(&checksum).is_some());
+  pub fn decrement(&mut self, checksum: &TextChecksum) {
+    let num_occurrences = self
+      .interned_text_sections
+      .get_mut(checksum)
+      .map(|text_section| {
+        text_section.num_occurrences -= 1;
+        text_section.num_occurrences
+      })
+      .expect("expected checksum to exist to be decremented");
+    if num_occurrences == 0 {
+      assert!(self.interned_text_sections.remove(checksum).is_some());
+    }
   }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SectionIndex(pub usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
@@ -184,15 +199,15 @@ impl Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
   ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///          TextSection { contents: "ab".to_string() }),
+  ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 15797338846215409778, length: 1 },
-  ///          TextSection { contents: "c".to_string() }),
+  ///          TextSection { contents: "c".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
-  ///          TextSection { contents: "".to_string() }),
+  ///          TextSection { contents: "".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 4980332201698043396, length: 2 },
-  ///          TextSection { contents: "ef".to_string() }),
+  ///          TextSection { contents: "ef".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 4158092142439706792, length: 1 },
-  ///          TextSection { contents: "g".to_string() }),
+  ///          TextSection { contents: "g".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
@@ -211,9 +226,9 @@ impl Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
   ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///          TextSection { contents: "ab".to_string() }),
+  ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
-  ///          TextSection { contents: "".to_string() }),
+  ///          TextSection { contents: "".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
@@ -230,9 +245,9 @@ impl Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
   ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///          TextSection { contents: "ab".to_string() }),
+  ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
   ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
-  ///          TextSection { contents: "".to_string() }),
+  ///          TextSection { contents: "".to_string(), num_occurrences: 2 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
@@ -249,7 +264,7 @@ impl Buffer {
     let mut last_token_index: usize = 0;
     for TokenIndex { location, length } in NewlineTokenizer.tokenize(input).into_iter() {
       let cur_line = &input[last_token_index..location];
-      let checksum = interns.add_if_new(cur_line);
+      let checksum = interns.increment(cur_line);
       lines.push(checksum);
       last_token_index = location + length;
     }
@@ -260,8 +275,56 @@ impl Buffer {
       /* If there were no tokens, then this is the whole string. */
       &input[last_token_index..]
     };
-    let checksum = interns.add_if_new(cur_line);
+    let checksum = interns.increment(cur_line);
     lines.push(checksum);
     Self { interns, lines }
   }
+
+  /// ???
+  ///
+  ///```
+  /// use emdocs_protocol::state::*;
+  ///
+  /// let mut abc = Buffer::tokenize("ab\nc");
+  /// let def = Buffer::tokenize("de\nf");
+  /// let mut abc2 = abc.clone();
+  /// let def2 = def.clone();
+  ///
+  /// abc.merge_into_at(def, SectionIndex(1));
+  /// let abcdef = Buffer::tokenize("ab\nde\nf");
+  /// assert_eq!(abc, abcdef);
+  ///
+  /// abc2.merge_into_at(def2, SectionIndex(0));
+  /// let defabc = Buffer::tokenize("de\nf\nc");
+  /// assert_eq!(abc2, defabc);
+  ///```
+  pub fn merge_into_at(&mut self, other: Self, at: SectionIndex) {
+    /* TODO: make this faster! */
+    let Self { interns, lines } = other;
+    for (checksum, text_section) in interns.interned_text_sections.into_iter() {
+      assert_eq!(checksum, self.interns.increment(&text_section.contents));
+    }
+    let SectionIndex(at) = at;
+    assert!(at < self.lines.len(), "cannot merge past end of lines!");
+    self.interns.decrement(&self.lines[at]);
+    self.lines = self.lines[..at]
+      .iter()
+      .cloned()
+      .chain(lines.into_iter())
+      .chain(self.lines[at + 1..].iter().cloned())
+      .collect();
+  }
+
+  /* pub fn insert_at(&mut self, at: usize, s: &str) { */
+  /*   /\* TODO: make this faster! *\/ */
+  /*   let mut cur_location: usize = 0; */
+  /*   for checksum in self.lines.iter() { */
+  /*     if cur_location + checksum.length > at { */
+  /*       let line_to_insert_at = self; */
+  /*     } else { */
+  /*       /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
+  /*       cur_location += checksum.length + 1; */
+  /*     } */
+  /*   } */
+  /* } */
 }
