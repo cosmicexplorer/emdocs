@@ -734,13 +734,18 @@ pub mod proptest_strategies {
         let mut prior_non_char_boundary: Option<usize> = None;
         let mut ret = Vec::new();
         for ind in indices.into_iter() {
+          /* Try to find a char boundary in between the prior and the next value. */
           if let Some(prior_non_char_boundary) = prior_non_char_boundary {
             for new_index in (prior_non_char_boundary + 1)..ind {
               if s.is_char_boundary(new_index) {
                 ret.push(new_index);
+                break;
               }
             }
+            /* If we can't find any before the next proposed delimiter, just forget about that
+             * one. */
           }
+          /* Save the current proposed delimiter if it can't immediately be used. */
           prior_non_char_boundary = if s.is_char_boundary(ind) {
             ret.push(ind);
             None
@@ -748,6 +753,8 @@ pub mod proptest_strategies {
             Some(ind)
           }
         }
+        /* After looping over all the proposed delimiters, ensure that the final one is placed if
+         * it was not directly on a char boundary (if possible). */
         if let Some(prior_non_char_boundary) = prior_non_char_boundary {
           for new_index in (prior_non_char_boundary + 1)..s.len() {
             if s.is_char_boundary(new_index) {
@@ -796,19 +803,19 @@ mod test {
   proptest! {
     #[test]
     fn test_tokenize_newlines((s, indices) in string_with_indices(5000, 5.0)) {
-        let input = delimited_input(&s, indices.clone());
-        let expected: Vec<TokenIndex> = indices.into_iter().enumerate().map(|(ind, loc)| {
-          TokenIndex {
-            /* NB: Have to add +ind because with each token-delimited (newline) we push the location
-             * of the inserted token one further to the right. It would be 2*ind if the delimiter
-             * was 2 chars long. */
-            location: loc + ind,
-            /* TODO: assuming \n is delimiter!!! */
-            length: 1,
+      let input = delimited_input(&s, indices.clone());
+      let expected: Vec<TokenIndex> = indices.into_iter().enumerate().map(|(ind, loc)| {
+        TokenIndex {
+          /* NB: Have to add +ind because with each token-delimited (newline) we push the location
+           * of the inserted token one further to the right. It would be 2*ind if the delimiter
+           * was 2 chars long. */
+          location: loc + ind,
+          /* TODO: assuming \n is delimiter!!! */
+          length: 1,
 
-          }
-        }).collect();
-        prop_assert_eq!(NewlineTokenizer.tokenize(&input), expected);
-      }
+        }
+      }).collect();
+      prop_assert_eq!(NewlineTokenizer.tokenize(&input), expected);
+    }
   }
 }
