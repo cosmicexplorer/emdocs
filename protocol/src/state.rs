@@ -715,6 +715,11 @@ pub mod proptest_strategies {
 
   use proptest::{prelude::*, strategy::Strategy};
 
+  /* TODO: generate an arbitrary tokenization string for ConstantTokenizer and for the target
+   * string, and then make sure to *use* ConstantTokenizer to extract the positions of existing
+   * token indices before adding more in delimiter_indices()! Figure out whether to just remove the
+   * automatically generated token indices first (to insert our own) or whether to leave them in
+   * and add our own on top! */
   prop_compose! {
     pub fn non_delimited_string(str_len: usize)
       /* TODO: assuming \n is delimiter!!! */
