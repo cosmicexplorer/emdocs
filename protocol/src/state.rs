@@ -309,7 +309,6 @@ impl Buffer {
     }
   }
 
-  /* #[cfg(test)] */
   pub fn dump(&self) -> String {
     let Self { interns, lines } = self;
     let mut ret = String::new();
@@ -635,16 +634,11 @@ impl Buffer {
   /// # }
   ///```
   pub fn delete_at(&mut self, range: DeletionRange) -> Result<(), BufferError> {
-    /* dbg!(range); */
-    /* dbg!(self.dump()); */
-    /* eprintln!("{}", self.dump()); */
     let DeletionResult { beg, end } = self.locate_deletion_range(range)?;
-    /* dbg!(beg); */
     let prefix = &self
       .interns
       .get_no_eq_check(*self.get_section(beg.section)?)?
       .contents[..beg.within.0];
-    /* dbg!(end); */
     let suffix = &self
       .interns
       .get_no_eq_check(*self.get_section(end.section)?)?
@@ -732,9 +726,8 @@ impl BufferMapping {
 #[cfg(test)]
 pub mod proptest_strategies {
   use super::*;
-  use crate::{buffers::proptest_strategies::*, transforms::proptest_strategies::*};
 
-  use proptest::{prelude::*, strategy::Strategy};
+  use proptest::prelude::*;
 
   /* TODO: generate an arbitrary tokenization string for ConstantTokenizer and for the target
    * string, and then make sure to *use* ConstantTokenizer to extract the positions of existing
@@ -852,14 +845,6 @@ pub mod proptest_strategies {
         })
       }
   }
-  /* prop_compose! { */
-  /*   pub fn new_buffer(str_len: usize, newline_factor: f64) */
-  /*     ((s, indices) in string_with_indices(str_len, newline_factor)) */
-  /*      -> Buffer { */
-  /*       let input = delimited_input(&s, &indices); */
-  /*       Buffer::tokenize(&input).expect("failed to tokenize buffer") */
-  /*   } */
-  /* } */
 }
 
 #[cfg(test)]
@@ -914,14 +899,14 @@ mod test {
       prop_assert_eq!(buf, buf2);
     }
   }
-  /* proptest! { */
-  /*   #[test] */
-  /*   fn test_buffer_delete((base, range) in deletion_range(500, 2.0)) { */
-  /*     let mut buf = Buffer::tokenize(&base).unwrap(); */
-  /*     buf.delete_at(range).unwrap(); */
-  /*     let spliced_str = [&base[..range.beg.0], &base[range.end.0 + 1..]].concat(); */
-  /*     let buf2 = Buffer::tokenize(&spliced_str).unwrap(); */
-  /*     prop_assert_eq!(buf, buf2); */
-  /*   } */
-  /* } */
+  proptest! {
+    #[test]
+    fn test_buffer_delete((base, range) in deletion_range(5000, 5.0)) {
+      let mut buf = Buffer::tokenize(&base).unwrap();
+      buf.delete_at(range).unwrap();
+      let spliced_str = [&base[..range.beg.0], &base[range.end.0..]].concat();
+      let buf2 = Buffer::tokenize(&spliced_str).unwrap();
+      prop_assert_eq!(buf, buf2);
+    }
+  }
 }
