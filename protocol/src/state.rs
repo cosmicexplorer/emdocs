@@ -61,10 +61,12 @@ pub struct TextChecksum {
   /// output is desired, we should explicitly use a cryptographic checksum like
   /// [`sha2`](https://docs.rs/sha2/latest/sha2/index.html).
   pub hash: u64,
-  /// Contains the number of **bytes** in the string, not [unicode code points]!!
+  /// Contains the number of **bytes** in the string.
+  pub length: usize,
+  /// Contains the number of **[unicode code points]** in the string.
   ///
   /// [unicode code points]: https://manishearth.github.io/blog/2017/01/14/stop-ascribing-meaning-to-unicode-code-points/
-  pub length: usize,
+  pub code_points: usize,
 }
 
 impl TextChecksum {
@@ -74,6 +76,7 @@ impl TextChecksum {
     Self {
       hash: hasher.finish(),
       length: text.len(),
+      code_points: text.chars().fold(0, |l, _| l + 1),
     }
   }
 }
@@ -181,26 +184,6 @@ impl SectionRange {
 /// <insertion index @ {0}>
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InsertionIndex(pub usize);
-
-impl TryFrom<transforms::Point> for InsertionIndex {
-  type Error = num::TryFromIntError;
-
-  fn try_from(value: transforms::Point) -> Result<Self, Self::Error> {
-    let transforms::Point { code_point_index } = value;
-    Ok(Self(code_point_index.try_into()?))
-  }
-}
-
-impl TryFrom<InsertionIndex> for transforms::Point {
-  type Error = num::TryFromIntError;
-
-  fn try_from(value: InsertionIndex) -> Result<Self, Self::Error> {
-    let InsertionIndex(index) = value;
-    Ok(Self {
-      code_point_index: index.try_into()?,
-    })
-  }
-}
 
 impl InsertionIndex {
   pub fn delete_range(&self, distance: usize) -> DeletionRange {
@@ -338,24 +321,24 @@ impl Buffer {
   ///   Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
-  ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
+  ///         (TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
   ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 15797338846215409778, length: 1 },
+  ///         (TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 },
   ///          TextSection { contents: "c".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
+  ///         (TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
   ///          TextSection { contents: "".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 4980332201698043396, length: 2 },
+  ///         (TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 },
   ///          TextSection { contents: "ef".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 4158092142439706792, length: 1 },
+  ///         (TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 },
   ///          TextSection { contents: "g".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///       TextChecksum { hash: 15797338846215409778, length: 1 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0 },
-  ///       TextChecksum { hash: 4980332201698043396, length: 2 },
-  ///       TextChecksum { hash: 4158092142439706792, length: 1 }],
+  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///       TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 },
+  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///       TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 },
+  ///       TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }],
   ///   },
   /// );
   ///
@@ -365,15 +348,15 @@ impl Buffer {
   ///   Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
-  ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
+  ///         (TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
   ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
+  ///         (TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
   ///          TextSection { contents: "".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0 },
+  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
   ///     ],
   ///   },
   /// );
@@ -384,16 +367,16 @@ impl Buffer {
   ///   Buffer {
   ///     interns: InternedTexts {
   ///       interned_text_sections: [
-  ///         (TextChecksum { hash: 6148830537548944441, length: 2 },
+  ///         (TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
   ///          TextSection { contents: "ab".to_string(), num_occurrences: 1 }),
-  ///         (TextChecksum { hash: 15130871412783076140, length: 0 },
+  ///         (TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
   ///          TextSection { contents: "".to_string(), num_occurrences: 2 }),
   ///       ].into_iter().collect(),
   ///     },
   ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0 },
+  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
   ///     ],
   ///   },
   /// );
@@ -500,6 +483,11 @@ impl Buffer {
     assert!(!self.lines.is_empty());
     SectionIndex(self.lines.len() - 1)
   }
+
+  /* pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> { */
+  /*   /\* TODO: make this faster (B-tree?)! *\/ */
+  /*   let mut cur_location: usize = 0; */
+  /* } */
 
   fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
     /* TODO: make this faster! */
@@ -706,7 +694,7 @@ impl BufferMapping {
     let mut buffer = buffer.write().await;
     match r#type {
       transforms::TransformType::edit(transforms::Edit { point, payload }) => {
-        let insertion_index: InsertionIndex = point.try_into()?;
+        let insertion_index: InsertionIndex = todo!();
         match payload {
           transforms::EditPayload::insert(transforms::Insert { contents }) => {
             buffer.insert_at(insertion_index, &contents)?;
