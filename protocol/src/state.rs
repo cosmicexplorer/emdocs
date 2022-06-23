@@ -276,6 +276,8 @@ pub enum BufferError {
   SectionOutOfBounds(SectionIndex, SectionIndex),
   /// insertion index {0} was past the end of the buffer at {1}
   EditOutOfBounds(InsertionIndex, InsertionIndex),
+  /// code point {0} was past the end of the buffer at {1}
+  CodePointOutOfBounds(transforms::Point, transforms::Point),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,13 +486,79 @@ impl Buffer {
     SectionIndex(self.lines.len() - 1)
   }
 
-  /* pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> { */
-  /*   /\* TODO: make this faster (B-tree?)! *\/ */
-  /*   let mut cur_location: usize = 0; */
-  /* } */
+  /// Retrieve the byte index corresponding to the code point index.
+  ///
+  ///```
+  /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
+  /// use emdocs_protocol::{transforms::*, state::*};
+  ///
+  /// let ab_c = Buffer::tokenize("ab\nc")?;
+  /// let index = ab_c.locate_code_point(Point { code_point_index: 1 })?;
+  /// assert_eq!(index, InsertionIndex(1));
+  /// let index = ab_c.locate_code_point(Point { code_point_index: 2 })?;
+  /// assert_eq!(index, InsertionIndex(2));
+  ///
+  /// let ae_o = Buffer::tokenize("a̐é\nö̲g")?;
+  /// let index = ae_o.locate_code_point(Point { code_point_index: 2 })?;
+  /// assert_eq!(index, InsertionIndex(3));
+  /// let index = ae_o.locate_code_point(Point { code_point_index: 4 })?;
+  /// assert_eq!(index, InsertionIndex(6));
+  /// # Ok(())
+  /// # }
+  ///```
+  pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> {
+    let transforms::Point { code_point_index } = point;
+    let code_point_index = code_point_index as usize;
+    /* TODO: make this faster (B-tree?)! */
+    let mut cur_code_point: usize = 0;
+    let mut cur_location: usize = 0;
+    let mut found_index: Option<InsertionIndex> = None;
+    for checksum in self.lines.iter() {
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      if cur_code_point + checksum.code_points + 1 > code_point_index {
+        let within_section = code_point_index - cur_code_point;
+        let bytes_within_section = if within_section == checksum.code_points {
+          checksum.length
+        } else {
+          self
+          .interns
+          .get_no_eq_check(*checksum)?
+          .contents
+          .char_indices()
+          .skip(within_section)
+          .next()
+          /* Get just the byte index, not the char. */
+          .map(|(i, _)| i)
+          .expect("verified with if clause that we have enough code points in this section")
+        };
+        found_index = Some(InsertionIndex(cur_location + bytes_within_section));
+        break;
+      } else {
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        cur_code_point += checksum.code_points + 1;
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        cur_location += checksum.length + 1;
+      }
+    }
+    match found_index {
+      Some(ii) => Ok(ii),
+      None => {
+        if code_point_index > cur_code_point {
+          Err(BufferError::CodePointOutOfBounds(
+            point,
+            transforms::Point {
+              code_point_index: cur_code_point as u64,
+            },
+          ))
+        } else {
+          Ok(InsertionIndex(cur_location))
+        }
+      },
+    }
+  }
 
   fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
-    /* TODO: make this faster! */
+    /* TODO: make this faster (B-tree?)! */
     let mut cur_location: usize = 0;
     let mut found_section: Option<FoundSection> = None;
     for (section_index, checksum) in self.lines.iter().enumerate() {
@@ -694,7 +762,7 @@ impl BufferMapping {
     let mut buffer = buffer.write().await;
     match r#type {
       transforms::TransformType::edit(transforms::Edit { point, payload }) => {
-        let insertion_index: InsertionIndex = todo!();
+        let insertion_index: InsertionIndex = buffer.locate_code_point(point)?;
         match payload {
           transforms::EditPayload::insert(transforms::Insert { contents }) => {
             buffer.insert_at(insertion_index, &contents)?;
@@ -833,6 +901,20 @@ pub mod proptest_strategies {
         })
       }
   }
+  prop_compose! {
+    pub fn code_point_index(str_len: usize, newline_factor: f64)
+      (s in delimited_string(str_len, newline_factor))
+      (code_point in 0..(s.chars().fold(0, |l, _| l + 1) as i32), s in Just(s))
+       -> (String, transforms::Point, InsertionIndex) {
+        let (byte_index, _) = s.char_indices().skip(code_point as usize).next()
+          .expect("code point should have been within range");
+        (
+          s,
+          transforms::Point { code_point_index: code_point as u64 },
+          InsertionIndex(byte_index),
+        )
+      }
+  }
 }
 
 #[cfg(test)]
@@ -895,6 +977,14 @@ mod test {
       let spliced_str = [&base[..range.beg.0], &base[range.end.0..]].concat();
       let buf2 = Buffer::tokenize(&spliced_str).unwrap();
       prop_assert_eq!(buf, buf2);
+    }
+  }
+  proptest! {
+    #[test]
+    fn test_locate_code_point((s, point, expected_index) in code_point_index(5000, 5.0)) {
+      let buf = Buffer::tokenize(&s).unwrap();
+      let found_index = buf.locate_code_point(point).unwrap();
+      prop_assert_eq!(expected_index, found_index);
     }
   }
 }
