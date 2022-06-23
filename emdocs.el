@@ -82,7 +82,8 @@
   `(:uuid ,source))
 
 (defun emdocs--create-point (point)
-  `(:code_point_index ,point))
+  ;; We subtract 1 from point in order to make it zero-indexed, which our backend assumes.
+  `(:code_point_index ,(1- point)))
 
 (defun emdocs--create-insert (contents)
   `(:insert (:contents ,contents)))
