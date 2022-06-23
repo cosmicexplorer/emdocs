@@ -168,9 +168,33 @@ impl InternedTexts {
   }
 }
 
-/// <code point index @ {0}>
+/// <code point section index @ {0}>
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct CodePointIndex(pub usize);
+pub struct CodePointSectionIndex(pub usize);
+
+impl CodePointSectionIndex {
+  pub fn end_index(&self, length: usize) -> CodePointInsertionIndex {
+    CodePointInsertionIndex(self.0 + length)
+  }
+}
+
+/// <code point insertion index @ {0}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CodePointInsertionIndex(pub usize);
+
+impl CodePointInsertionIndex {
+  pub fn section_bounds(&self) -> (Bound<CodePointSectionIndex>, Bound<CodePointSectionIndex>) {
+    (
+      Bound::Unbounded,
+      Bound::Included(CodePointSectionIndex(self.0)),
+    )
+  }
+
+  pub fn from_point(point: transforms::Point) -> Self {
+    let transforms::Point { code_point_index } = point;
+    Self(code_point_index as usize)
+  }
+}
 
 /// <byte section index @ {0}>
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -299,14 +323,14 @@ pub enum BufferError {
   /// insertion index {0} was past the end of the buffer at {1}
   EditOutOfBounds(InsertionIndex, InsertionIndex),
   /// code point {0} was past the end of the buffer at {1}
-  CodePointOutOfBounds(transforms::Point, transforms::Point),
+  CodePointOutOfBounds(CodePointInsertionIndex, CodePointInsertionIndex),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
   pub interns: InternedTexts,
   pub lines_by_bytes: BTreeMap<ByteSectionIndex, TextChecksum>,
-  /* pub lines_by_code_points: BTreeMap<CodePointIndex, TextChecksum>, */
+  pub lines_by_code_points: BTreeMap<CodePointSectionIndex, TextChecksum>,
 }
 
 impl Buffer {
@@ -314,6 +338,7 @@ impl Buffer {
     Self {
       interns: InternedTexts::new(),
       lines_by_bytes: BTreeMap::new(),
+      lines_by_code_points: BTreeMap::new(),
     }
   }
 
@@ -321,6 +346,7 @@ impl Buffer {
     let Self {
       interns,
       lines_by_bytes,
+      ..
     } = self;
     let mut ret = String::new();
     let n = lines_by_bytes.len();
@@ -368,6 +394,13 @@ impl Buffer {
   ///       (ByteSectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
   ///       (ByteSectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
   ///     ].into(),
+  ///     lines_by_code_points: [
+  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 }),
+  ///       (CodePointSectionIndex(5), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (CodePointSectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
+  ///       (CodePointSectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
+  ///     ].into(),
   ///   },
   /// );
   ///
@@ -386,6 +419,10 @@ impl Buffer {
   ///     lines_by_bytes: [
   ///       (ByteSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
   ///       (ByteSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///     ].into(),
+  ///     lines_by_code_points: [
+  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
   ///   },
   /// );
@@ -407,30 +444,36 @@ impl Buffer {
   ///       (ByteSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///       (ByteSectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
+  ///     lines_by_code_points: [
+  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (CodePointSectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///     ].into(),
   ///   },
   /// );
   /// # Ok(())
   /// # }
   ///```
   pub fn tokenize(input: &str) -> Result<Self, BufferError> {
-    let mut interns = InternedTexts::new();
+    let mut ret = Self::new();
     let mut checksums = Vec::new();
     let mut last_token_index: usize = 0;
     for TokenIndex { location, length } in NewlineTokenizer.tokenize(input).into_iter() {
       let cur_line = &input[last_token_index..location];
-      checksums.push(interns.increment(cur_line)?);
+      checksums.push(ret.interns.increment(cur_line)?);
       last_token_index = location + length;
     }
     /* If we ended on a token, then the last line is empty. If there were no tokens, then this is
      * the whole string. */
     let cur_line = &input[last_token_index..];
-    checksums.push(interns.increment(cur_line)?);
-    let mut ret = Self {
-      interns,
-      lines_by_bytes: BTreeMap::new(),
-    };
+    checksums.push(ret.interns.increment(cur_line)?);
     ret.process_checksums(checksums);
     assert_eq!(ret.lines_by_bytes.keys().next(), Some(&ByteSectionIndex(0)));
+    assert_eq!(
+      ret.lines_by_code_points.keys().next(),
+      Some(&CodePointSectionIndex(0))
+    );
+    assert_eq!(ret.lines_by_bytes.len(), ret.lines_by_code_points.len());
     Ok(ret)
   }
 
@@ -440,12 +483,22 @@ impl Buffer {
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       .map(|InsertionIndex(i)| InsertionIndex(i + 1))
       .unwrap_or_else(|| InsertionIndex(0));
+    let CodePointInsertionIndex(mut last_code_point_index) = self
+      .code_point_extent()
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      .map(|CodePointInsertionIndex(i)| CodePointInsertionIndex(i + 1))
+      .unwrap_or_else(|| CodePointInsertionIndex(0));
     for checksum in checksums.into_iter() {
       self
         .lines_by_bytes
         .insert(ByteSectionIndex(last_token_index), checksum);
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       last_token_index += checksum.length + 1;
+      self
+        .lines_by_code_points
+        .insert(CodePointSectionIndex(last_code_point_index), checksum);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      last_code_point_index += checksum.code_points + 1;
     }
   }
 
@@ -487,6 +540,7 @@ impl Buffer {
     let Self {
       interns: other_interns,
       lines_by_bytes: other_lines_by_bytes,
+      ..
     } = other;
     /* Intern all the new strings from `other`. */
     self.interns.extract_from(other_interns)?;
@@ -503,6 +557,15 @@ impl Buffer {
       );
       (occluded_and_suffix, suffix)
     };
+
+    /* Remove all code point sections after the prefix, which should be the exact same length as
+     * `self.lines_by_bytes()` (the prefix of byte sections). */
+    self.lines_by_code_points = self
+      .lines_by_code_points
+      .iter()
+      .take(self.lines_by_bytes.len())
+      .map(|(index, checksum)| (*index, *checksum))
+      .collect();
 
     /* De-intern all the strings from `self` that we're no longer using. */
     for (_, checksum) in occluded.into_iter() {
@@ -558,8 +621,22 @@ impl Buffer {
   /// # }
   ///```
   pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> {
+    /* let at = CodePointInsertionIndex::from_point(point); */
+    /* let final_index = self */
+    /*   .code_point_extent() */
+    /*   .expect("should have been non-empty"); */
+    /* if at > final_index { */
+    /*   return Err(BufferError::CodePointOutOfBounds(at, final_index)); */
+    /* } */
+    /* let num_sections = self.lines_by_code_points.range(at.section_bounds()).count(); */
+    /* self.lines_by_bytes.iter().take(num_sections) */
+    /*   .last() */
+    /*   .expect() */
+
+    /* assert!(at <= section.end_index(checksum.length)); */
+    /* Ok(InsertionIndex()) */
     todo!()
-    /* let transforms::Point { code_point_index } = point; */
+
     /* let code_point_index = code_point_index as usize; */
     /* /\* TODO: make this faster (B-tree?)! *\/ */
     /* let mut cur_code_point: usize = 0; */
@@ -617,6 +694,14 @@ impl Buffer {
       .map(|(section, checksum)| section.end_index(checksum.length))
   }
 
+  fn code_point_extent(&self) -> Option<CodePointInsertionIndex> {
+    self
+      .lines_by_code_points
+      .iter()
+      .last()
+      .map(|(section, checksum)| section.end_index(checksum.code_points))
+  }
+
   fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
     /* TODO: make this faster (B-tree?)! */
     let final_index = self.byte_extent().expect("should have been non-empty");
@@ -627,13 +712,7 @@ impl Buffer {
       .lines_by_bytes
       .range(at.section_bounds())
       .last()
-      .unwrap_or_else(|| {
-        self
-          .lines_by_bytes
-          .iter()
-          .last()
-          .expect("should have at least one element in lines_by_bytes")
-      });
+      .expect("first element should have been at 0, so this should always produce something");
     assert!(at <= section.end_index(checksum.length));
     Ok(FoundSection {
       section: *section,
@@ -705,9 +784,11 @@ impl Buffer {
     let Self {
       interns,
       lines_by_bytes,
+      lines_by_code_points,
     } = Self::tokenize(s)?;
     self.interns = interns;
     self.lines_by_bytes = lines_by_bytes;
+    self.lines_by_code_points = lines_by_code_points;
     Ok(())
   }
 
