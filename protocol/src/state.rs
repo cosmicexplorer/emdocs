@@ -899,6 +899,16 @@ mod test {
       prop_assert_eq!(buf, buf2);
     }
   }
+  proptest! {
+    #[test]
+    fn test_buffer_delete_none((base, at) in insertion_index(5000, 5.0)) {
+      let mut buf = Buffer::tokenize(&base).unwrap();
+      let buf2 = buf.clone();
+      let range = DeletionRange { beg: at, end: at };
+      buf.delete_at(range).unwrap();
+      prop_assert_eq!(buf, buf2);
+    }
+  }
   /* proptest! { */
   /*   #[test] */
   /*   fn test_buffer_delete((base, range) in deletion_range(500, 2.0)) { */
