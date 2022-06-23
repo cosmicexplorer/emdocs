@@ -626,6 +626,11 @@ impl Buffer {
   /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(7) })?;
   /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
+  ///
+  /// let mut ae_o = Buffer::tokenize("a̐é\nö̲g")?;
+  /// ae_o.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(12) })?;
+  /// let ag = Buffer::tokenize("a̐g")?;
+  /// assert_eq!(ae_o, ag);
   /// # Ok(())
   /// # }
   ///```
