@@ -168,11 +168,15 @@ impl InternedTexts {
   }
 }
 
-/// <section index @ {0}>
+/// <code point index @ {0}>
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct SectionIndex(pub usize);
+pub struct CodePointIndex(pub usize);
 
-impl SectionIndex {
+/// <byte section index @ {0}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ByteSectionIndex(pub usize);
+
+impl ByteSectionIndex {
   pub fn end_index(&self, length: usize) -> InsertionIndex { InsertionIndex(self.0 + length) }
 
   pub fn within_index(&self, at: InsertionIndex) -> WithinSectionIndex {
@@ -182,17 +186,17 @@ impl SectionIndex {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionRange {
-  pub start: SectionIndex,
-  pub end: SectionIndex,
+  pub start: ByteSectionIndex,
+  pub end: ByteSectionIndex,
 }
 
 impl SectionRange {
-  pub fn new(start: SectionIndex, end: SectionIndex) -> Self {
+  pub fn new(start: ByteSectionIndex, end: ByteSectionIndex) -> Self {
     assert!(start <= end);
     Self { start, end }
   }
 
-  pub fn single(si: SectionIndex) -> Self { Self::new(si, si) }
+  pub fn single(si: ByteSectionIndex) -> Self { Self::new(si, si) }
 }
 
 /// <insertion index @ {0}>
@@ -207,8 +211,8 @@ impl InsertionIndex {
     }
   }
 
-  pub fn section_bounds(&self) -> (Bound<SectionIndex>, Bound<SectionIndex>) {
-    (Bound::Unbounded, Bound::Included(SectionIndex(self.0)))
+  pub fn section_bounds(&self) -> (Bound<ByteSectionIndex>, Bound<ByteSectionIndex>) {
+    (Bound::Unbounded, Bound::Included(ByteSectionIndex(self.0)))
   }
 }
 
@@ -217,7 +221,7 @@ pub struct WithinSectionIndex(pub usize);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FoundSection {
-  pub section: SectionIndex,
+  pub section: ByteSectionIndex,
   pub within: WithinSectionIndex,
 }
 
@@ -291,7 +295,7 @@ pub enum BufferError {
   /// error managing interned string: {0}
   Intern(#[from] InternError),
   /// section index {0} was past the end of the section list at {1}
-  SectionOutOfBounds(SectionIndex, SectionIndex),
+  SectionOutOfBounds(ByteSectionIndex, ByteSectionIndex),
   /// insertion index {0} was past the end of the buffer at {1}
   EditOutOfBounds(InsertionIndex, InsertionIndex),
   /// code point {0} was past the end of the buffer at {1}
@@ -301,7 +305,8 @@ pub enum BufferError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
   pub interns: InternedTexts,
-  pub lines_by_bytes: BTreeMap<SectionIndex, TextChecksum>,
+  pub lines_by_bytes: BTreeMap<ByteSectionIndex, TextChecksum>,
+  /* pub lines_by_code_points: BTreeMap<CodePointIndex, TextChecksum>, */
 }
 
 impl Buffer {
@@ -357,11 +362,11 @@ impl Buffer {
   ///       ].into_iter().collect(),
   ///     },
   ///     lines_by_bytes: [
-  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (SectionIndex(3), TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 }),
-  ///       (SectionIndex(5), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
-  ///       (SectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
-  ///       (SectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
+  ///       (ByteSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (ByteSectionIndex(3), TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 }),
+  ///       (ByteSectionIndex(5), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (ByteSectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
+  ///       (ByteSectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
   ///     ].into(),
   ///   },
   /// );
@@ -379,8 +384,8 @@ impl Buffer {
   ///       ].into_iter().collect(),
   ///     },
   ///     lines_by_bytes: [
-  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (SectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (ByteSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (ByteSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
   ///   },
   /// );
@@ -398,9 +403,9 @@ impl Buffer {
   ///       ].into_iter().collect(),
   ///     },
   ///     lines_by_bytes: [
-  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (SectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
-  ///       (SectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (ByteSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (ByteSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (ByteSectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
   ///   },
   /// );
@@ -409,24 +414,39 @@ impl Buffer {
   ///```
   pub fn tokenize(input: &str) -> Result<Self, BufferError> {
     let mut interns = InternedTexts::new();
-    let mut lines_by_bytes = BTreeMap::new();
+    let mut checksums = Vec::new();
     let mut last_token_index: usize = 0;
     for TokenIndex { location, length } in NewlineTokenizer.tokenize(input).into_iter() {
       let cur_line = &input[last_token_index..location];
-      let checksum = interns.increment(cur_line)?;
-      lines_by_bytes.insert(SectionIndex(last_token_index), checksum);
+      checksums.push(interns.increment(cur_line)?);
       last_token_index = location + length;
     }
     /* If we ended on a token, then the last line is empty. If there were no tokens, then this is
      * the whole string. */
     let cur_line = &input[last_token_index..];
-    let checksum = interns.increment(cur_line)?;
-    lines_by_bytes.insert(SectionIndex(last_token_index), checksum);
-    assert_eq!(lines_by_bytes.keys().next(), Some(&SectionIndex(0)));
-    Ok(Self {
+    checksums.push(interns.increment(cur_line)?);
+    let mut ret = Self {
       interns,
-      lines_by_bytes,
-    })
+      lines_by_bytes: BTreeMap::new(),
+    };
+    ret.process_checksums(checksums);
+    assert_eq!(ret.lines_by_bytes.keys().next(), Some(&ByteSectionIndex(0)));
+    Ok(ret)
+  }
+
+  fn process_checksums(&mut self, checksums: Vec<TextChecksum>) {
+    let InsertionIndex(mut last_token_index) = self
+      .byte_extent()
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      .map(|InsertionIndex(i)| InsertionIndex(i + 1))
+      .unwrap_or_else(|| InsertionIndex(0));
+    for checksum in checksums.into_iter() {
+      self
+        .lines_by_bytes
+        .insert(ByteSectionIndex(last_token_index), checksum);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      last_token_index += checksum.length + 1;
+    }
   }
 
   /// ???
@@ -442,21 +462,21 @@ impl Buffer {
   /// let mut abc3 = abc.clone();
   /// let def3 = def.clone();
   ///
-  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(3)))?;
+  /// abc.merge_into_at(def, SectionRange::single(ByteSectionIndex(3)))?;
   /// let ab_de_f = Buffer::tokenize("ab\nde\nf")?;
   /// assert_eq!(abc, ab_de_f);
   ///
-  /// abc2.merge_into_at(def2, SectionRange::single(SectionIndex(0)))?;
+  /// abc2.merge_into_at(def2, SectionRange::single(ByteSectionIndex(0)))?;
   /// let de_f_c = Buffer::tokenize("de\nf\nc")?;
   /// assert_eq!(abc2, de_f_c);
   ///
-  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(3)))?;
+  /// abc3.merge_into_at(def3, SectionRange::new(ByteSectionIndex(0), ByteSectionIndex(3)))?;
   /// let de_f = Buffer::tokenize("de\nf")?;
   /// assert_eq!(abc3, de_f);
   ///
   /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng")?;
   /// let f = Buffer::tokenize("f")?;
-  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(3), SectionIndex(5)))?;
+  /// ab_c_def_g.merge_into_at(f, SectionRange::new(ByteSectionIndex(3), ByteSectionIndex(5)))?;
   /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
   /// # Ok(())
@@ -489,39 +509,27 @@ impl Buffer {
       self.interns.decrement(checksum)?;
     }
 
-    let InsertionIndex(mut last_token_index) = self
-      .byte_extent()
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      .map(|InsertionIndex(i)| InsertionIndex(i + 1))
-      .unwrap_or_else(|| InsertionIndex(0));
     /* Insert lines from `other`, bumping up the token index each time. */
-    for (_, checksum) in other_lines_by_bytes.into_iter() {
-      self
-        .lines_by_bytes
-        .insert(SectionIndex(last_token_index), checksum);
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      last_token_index += checksum.length + 1;
-    }
+    let other_checksums: Vec<_> = other_lines_by_bytes
+      .into_iter()
+      .map(|(_, checksum)| checksum)
+      .collect();
+    self.process_checksums(other_checksums);
     /* Re-insert lines from `suffix`, bumping up the token index each time. */
-    for (_, checksum) in suffix.into_iter() {
-      self
-        .lines_by_bytes
-        .insert(SectionIndex(last_token_index), checksum);
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      last_token_index += checksum.length + 1;
-    }
+    let suffix_checksums: Vec<_> = suffix.into_iter().map(|(_, checksum)| checksum).collect();
+    self.process_checksums(suffix_checksums);
 
     Ok(())
   }
 
-  fn get_section(&self, si: SectionIndex) -> Result<&TextChecksum, BufferError> {
+  fn get_section(&self, si: ByteSectionIndex) -> Result<&TextChecksum, BufferError> {
     self
       .lines_by_bytes
       .get(&si)
       .ok_or_else(|| BufferError::SectionOutOfBounds(si, self.final_section()))
   }
 
-  fn final_section(&self) -> SectionIndex {
+  fn final_section(&self) -> ByteSectionIndex {
     *self
       .lines_by_bytes
       .keys()
