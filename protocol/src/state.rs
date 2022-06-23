@@ -306,20 +306,23 @@ impl Buffer {
     }
   }
 
-  /* pub fn dump(self) -> String { */
-  /*   let Self { interns, lines } = self; */
-  /*   let mut ret = String::new(); */
-  /*   let n = lines.len(); */
-  /*   for (ind, checksum) in lines.into_iter().enumerate() { */
-  /*     let text_section = interns.get_no_eq_check(&checksum); */
-  /*     ret.push_str(&text_section.contents); */
-  /*     if ind < n - 1 { */
-  /*       /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
-  /*       ret.push_str("\n"); */
-  /*     } */
-  /*   } */
-  /*   ret */
-  /* } */
+  /* #[cfg(test)] */
+  pub fn dump(&self) -> String {
+    let Self { interns, lines } = self;
+    let mut ret = String::new();
+    let n = lines.len();
+    for (ind, checksum) in lines.iter().enumerate() {
+      let text_section = interns
+        .get_no_eq_check(*checksum)
+        .expect("checksum should exist");
+      ret.push_str(&text_section.contents);
+      if ind < n - 1 {
+        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+        ret.push_str("\n");
+      }
+    }
+    ret
+  }
 
   /// Tokenize a string into a buffer.
   ///
@@ -606,28 +609,38 @@ impl Buffer {
   /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
   /// use emdocs_protocol::state::*;
   ///
-  /// let mut abc = Buffer::tokenize("ab\nc")?;
-  /// abc.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(0) })?;
+  /// let mut ab_c = Buffer::tokenize("ab\nc")?;
+  /// ab_c.delete_at(DeletionRange { beg: InsertionIndex(0), end: InsertionIndex(1) })?;
   /// let b_c = Buffer::tokenize("b\nc")?;
-  /// assert_eq!(abc, b_c);
+  /// assert_eq!(ab_c, b_c);
+  ///
+  /// let mut ab_c = Buffer::tokenize("ab\nc")?;
+  /// ab_c.delete_at(DeletionRange { beg: InsertionIndex(1), end: InsertionIndex(1) })?;
+  /// let ab_c2 = Buffer::tokenize("ab\nc")?;
+  /// assert_eq!(ab_c, ab_c2);
   ///
   /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng")?;
-  /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(6) })?;
+  /// ab_c_def_g.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(7) })?;
   /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
   /// # Ok(())
   /// # }
   ///```
   pub fn delete_at(&mut self, range: DeletionRange) -> Result<(), BufferError> {
+    /* dbg!(range); */
+    /* dbg!(self.dump()); */
+    /* eprintln!("{}", self.dump()); */
     let DeletionResult { beg, end } = self.locate_deletion_range(range)?;
+    /* dbg!(beg); */
     let prefix = &self
       .interns
       .get_no_eq_check(*self.get_section(beg.section)?)?
       .contents[..beg.within.0];
+    /* dbg!(end); */
     let suffix = &self
       .interns
       .get_no_eq_check(*self.get_section(end.section)?)?
-      .contents[end.within.0 + 1..];
+      .contents[end.within.0..];
     let new_line_string = [prefix, suffix].concat();
     self.merge_into_at(
       Self::tokenize(&new_line_string)?,
@@ -770,15 +783,15 @@ pub mod proptest_strategies {
         ret
     }
   }
-  pub fn delimited_input(s: &str, indices: Vec<usize>) -> String {
+  pub fn delimited_input(s: &str, indices: &[usize]) -> String {
     let mut buf = String::new();
     let mut last_start: usize = 0;
-    for ind in indices.into_iter() {
-      assert!(ind <= s.len());
-      buf.push_str(&s[last_start..ind]);
+    for ind in indices.iter() {
+      assert!(*ind <= s.len());
+      buf.push_str(&s[last_start..*ind]);
       /* TODO: assuming \n is delimiter!!! */
       buf.push('\n');
-      last_start = ind;
+      last_start = *ind;
     }
     buf.push_str(&s[last_start..]);
     buf
@@ -792,9 +805,51 @@ pub mod proptest_strategies {
         (in_between, indices)
       }
   }
+  prop_compose! {
+    pub fn delimited_string(str_len: usize, newline_factor: f64)
+      ((s, indices) in string_with_indices(str_len, newline_factor)) -> String {
+        delimited_input(&s, &indices)
+      }
+  }
+  prop_compose! {
+    pub fn insertion_index(str_len: usize, newline_factor: f64)
+      (s in delimited_string(str_len, newline_factor))
+      (mut index in 0..s.len(), s in Just(s))
+       -> (String, InsertionIndex) {
+        while !s.is_char_boundary(index) {
+          index -= 1;
+        }
+        (s, InsertionIndex(index))
+    }
+  }
+  prop_compose! {
+    pub fn deletion_range(str_len: usize, newline_factor: f64)
+      (s in delimited_string(str_len, newline_factor))
+      (index1 in 0..s.len(), index2 in 0..s.len(), s in Just(s))
+       -> (String, DeletionRange) {
+        let (mut index1, mut index2) = if index1 <= index2 {
+          (index1, index2)
+        } else {
+          (index2, index1)
+        };
+        while !s.is_char_boundary(index1) {
+          index1 -= 1;
+        }
+        while !s.is_char_boundary(index2) {
+          index2 -= 1;
+        }
+        (s, DeletionRange {
+          beg: InsertionIndex(index1),
+          end: InsertionIndex(index2),
+        })
+      }
+  }
   /* prop_compose! { */
-  /*   pub fn new_buffer()(contents in any::<String>()) -> Buffer { */
-  /*     Buffer::tokenize(&contents).expect("failed to tokenize buffer") */
+  /*   pub fn new_buffer(str_len: usize, newline_factor: f64) */
+  /*     ((s, indices) in string_with_indices(str_len, newline_factor)) */
+  /*      -> Buffer { */
+  /*       let input = delimited_input(&s, &indices); */
+  /*       Buffer::tokenize(&input).expect("failed to tokenize buffer") */
   /*   } */
   /* } */
 }
@@ -808,7 +863,7 @@ mod test {
   proptest! {
     #[test]
     fn test_tokenize_newlines((s, indices) in string_with_indices(5000, 5.0)) {
-      let input = delimited_input(&s, indices.clone());
+      let input = delimited_input(&s, &indices);
       let expected: Vec<TokenIndex> = indices.into_iter().enumerate().map(|(ind, loc)| {
         TokenIndex {
           /* NB: Have to add +ind because with each token-delimited (newline) we push the location
@@ -823,4 +878,32 @@ mod test {
       prop_assert_eq!(NewlineTokenizer.tokenize(&input), expected);
     }
   }
+  proptest! {
+    #[test]
+    fn test_buffer_tokenize_lines((s, indices) in string_with_indices(5000, 5.0)) {
+      let input = delimited_input(&s, &indices);
+      let buf = Buffer::tokenize(&input).unwrap();
+      prop_assert_eq!(buf.lines.len(), indices.len() + 1);
+    }
+  }
+  proptest! {
+    #[test]
+    fn test_buffer_insert((base, at) in insertion_index(5000, 5.0), s in any::<String>()) {
+      let mut buf = Buffer::tokenize(&base).unwrap();
+      buf.insert_at(at, &s).unwrap();
+      let merged_str = [&base[..at.0], &s, &base[at.0..]].concat();
+      let buf2 = Buffer::tokenize(&merged_str).unwrap();
+      prop_assert_eq!(buf, buf2);
+    }
+  }
+  /* proptest! { */
+  /*   #[test] */
+  /*   fn test_buffer_delete((base, range) in deletion_range(500, 2.0)) { */
+  /*     let mut buf = Buffer::tokenize(&base).unwrap(); */
+  /*     buf.delete_at(range).unwrap(); */
+  /*     let spliced_str = [&base[..range.beg.0], &base[range.end.0 + 1..]].concat(); */
+  /*     let buf2 = Buffer::tokenize(&spliced_str).unwrap(); */
+  /*     prop_assert_eq!(buf, buf2); */
+  /*   } */
+  /* } */
 }
