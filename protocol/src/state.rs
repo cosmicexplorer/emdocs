@@ -61,6 +61,9 @@ pub struct TextChecksum {
   /// output is desired, we should explicitly use a cryptographic checksum like
   /// [`sha2`](https://docs.rs/sha2/latest/sha2/index.html).
   pub hash: u64,
+  /// Contains the number of **bytes** in the string, not [unicode code points]!!
+  ///
+  /// [unicode code points]: https://manishearth.github.io/blog/2017/01/14/stop-ascribing-meaning-to-unicode-code-points/
   pub length: usize,
 }
 
