@@ -52,7 +52,13 @@ use displaydoc::Display;
 use indexmap::IndexMap;
 use thiserror::Error;
 
-use std::{collections::hash_map::DefaultHasher, hash::Hasher, num, sync::Arc};
+use std::{
+  collections::{hash_map::DefaultHasher, BTreeMap},
+  hash::Hasher,
+  num,
+  ops::Bound,
+  sync::Arc,
+};
 
 /// <checksum hash: {hash}, length: {length}>
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -166,6 +172,14 @@ impl InternedTexts {
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionIndex(pub usize);
 
+impl SectionIndex {
+  pub fn end_index(&self, length: usize) -> InsertionIndex { InsertionIndex(self.0 + length) }
+
+  pub fn within_index(&self, at: InsertionIndex) -> WithinSectionIndex {
+    WithinSectionIndex(at.0 - self.0)
+  }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SectionRange {
   pub start: SectionIndex,
@@ -191,6 +205,10 @@ impl InsertionIndex {
       beg: self.clone(),
       end: InsertionIndex(self.0 + distance),
     }
+  }
+
+  pub fn section_bounds(&self) -> (Bound<SectionIndex>, Bound<SectionIndex>) {
+    (Bound::Unbounded, Bound::Included(SectionIndex(self.0)))
   }
 }
 
@@ -283,22 +301,25 @@ pub enum BufferError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
   pub interns: InternedTexts,
-  pub lines: Vec<TextChecksum>,
+  pub lines_by_bytes: BTreeMap<SectionIndex, TextChecksum>,
 }
 
 impl Buffer {
   pub fn new() -> Self {
     Self {
       interns: InternedTexts::new(),
-      lines: Vec::new(),
+      lines_by_bytes: BTreeMap::new(),
     }
   }
 
   pub fn dump(&self) -> String {
-    let Self { interns, lines } = self;
+    let Self {
+      interns,
+      lines_by_bytes,
+    } = self;
     let mut ret = String::new();
-    let n = lines.len();
-    for (ind, checksum) in lines.iter().enumerate() {
+    let n = lines_by_bytes.len();
+    for (ind, checksum) in lines_by_bytes.values().enumerate() {
       let text_section = interns
         .get_no_eq_check(*checksum)
         .expect("checksum should exist");
@@ -335,12 +356,13 @@ impl Buffer {
   ///          TextSection { contents: "g".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
-  ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
-  ///       TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
-  ///       TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 },
-  ///       TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }],
+  ///     lines_by_bytes: [
+  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (SectionIndex(3), TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 }),
+  ///       (SectionIndex(5), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (SectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
+  ///       (SectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
+  ///     ].into(),
   ///   },
   /// );
   ///
@@ -356,10 +378,10 @@ impl Buffer {
   ///          TextSection { contents: "".to_string(), num_occurrences: 1 }),
   ///       ].into_iter().collect(),
   ///     },
-  ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
-  ///     ],
+  ///     lines_by_bytes: [
+  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (SectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///     ].into(),
   ///   },
   /// );
   ///
@@ -375,11 +397,11 @@ impl Buffer {
   ///          TextSection { contents: "".to_string(), num_occurrences: 2 }),
   ///       ].into_iter().collect(),
   ///     },
-  ///     lines: vec![
-  ///       TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
-  ///       TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
-  ///     ],
+  ///     lines_by_bytes: [
+  ///       (SectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
+  ///       (SectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (SectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///     ].into(),
   ///   },
   /// );
   /// # Ok(())
@@ -387,20 +409,24 @@ impl Buffer {
   ///```
   pub fn tokenize(input: &str) -> Result<Self, BufferError> {
     let mut interns = InternedTexts::new();
-    let mut lines = Vec::new();
+    let mut lines_by_bytes = BTreeMap::new();
     let mut last_token_index: usize = 0;
     for TokenIndex { location, length } in NewlineTokenizer.tokenize(input).into_iter() {
       let cur_line = &input[last_token_index..location];
       let checksum = interns.increment(cur_line)?;
-      lines.push(checksum);
+      lines_by_bytes.insert(SectionIndex(last_token_index), checksum);
       last_token_index = location + length;
     }
     /* If we ended on a token, then the last line is empty. If there were no tokens, then this is
      * the whole string. */
     let cur_line = &input[last_token_index..];
     let checksum = interns.increment(cur_line)?;
-    lines.push(checksum);
-    Ok(Self { interns, lines })
+    lines_by_bytes.insert(SectionIndex(last_token_index), checksum);
+    assert_eq!(lines_by_bytes.keys().next(), Some(&SectionIndex(0)));
+    Ok(Self {
+      interns,
+      lines_by_bytes,
+    })
   }
 
   /// ???
@@ -416,7 +442,7 @@ impl Buffer {
   /// let mut abc3 = abc.clone();
   /// let def3 = def.clone();
   ///
-  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(1)))?;
+  /// abc.merge_into_at(def, SectionRange::single(SectionIndex(3)))?;
   /// let ab_de_f = Buffer::tokenize("ab\nde\nf")?;
   /// assert_eq!(abc, ab_de_f);
   ///
@@ -424,13 +450,13 @@ impl Buffer {
   /// let de_f_c = Buffer::tokenize("de\nf\nc")?;
   /// assert_eq!(abc2, de_f_c);
   ///
-  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(1)))?;
+  /// abc3.merge_into_at(def3, SectionRange::new(SectionIndex(0), SectionIndex(3)))?;
   /// let de_f = Buffer::tokenize("de\nf")?;
   /// assert_eq!(abc3, de_f);
   ///
   /// let mut ab_c_def_g = Buffer::tokenize("ab\nc\ndef\ng")?;
   /// let f = Buffer::tokenize("f")?;
-  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(1), SectionIndex(2)))?;
+  /// ab_c_def_g.merge_into_at(f, SectionRange::new(SectionIndex(3), SectionIndex(5)))?;
   /// let ab_f_g = Buffer::tokenize("ab\nf\ng")?;
   /// assert_eq!(ab_c_def_g, ab_f_g);
   /// # Ok(())
@@ -438,52 +464,69 @@ impl Buffer {
   ///```
   pub fn merge_into_at(&mut self, other: Self, at: SectionRange) -> Result<(), BufferError> {
     /* TODO: make this faster! */
-    let Self { interns, lines } = other;
-    self.interns.extract_from(interns)?;
-    let (prefix, occluded, suffix) = Self::split_lines_by_range(&self.lines, at)?;
-    for checksum in occluded.iter() {
-      self.interns.decrement(*checksum)?;
-    }
-    self.lines = prefix
-      .iter()
-      .cloned()
-      .chain(lines.into_iter())
-      .chain(suffix.iter().cloned())
-      .collect();
-    Ok(())
-  }
+    let Self {
+      interns: other_interns,
+      lines_by_bytes: other_lines_by_bytes,
+    } = other;
+    /* Intern all the new strings from `other`. */
+    self.interns.extract_from(other_interns)?;
 
-  fn split_lines_by_range(
-    lines: &[TextChecksum],
-    range: SectionRange,
-  ) -> Result<(&[TextChecksum], &[TextChecksum], &[TextChecksum]), BufferError> {
-    let SectionRange { start, end } = range;
-    assert!(!lines.is_empty());
-    let final_section = SectionIndex(lines.len() - 1);
-    if start > final_section {
-      return Err(BufferError::SectionOutOfBounds(start, final_section));
+    let SectionRange { start, end } = at;
+    /* Split out the sections of the map that need to be removed or updated. */
+    let (occluded, suffix) = {
+      let mut occluded_and_suffix = self.lines_by_bytes.split_off(&start);
+      let mut suffix = occluded_and_suffix.split_off(&end);
+      /* Extract the `end` value from `suffix` and insert into `occluded_and_suffix`. */
+      assert_eq!(
+        None,
+        occluded_and_suffix.insert(end, suffix.remove(&end).unwrap())
+      );
+      (occluded_and_suffix, suffix)
+    };
+
+    /* De-intern all the strings from `self` that we're no longer using. */
+    for (_, checksum) in occluded.into_iter() {
+      self.interns.decrement(checksum)?;
     }
-    /* Do *NOT* include the upper bound. */
-    let lhs = &lines[..start.0];
-    if end > final_section {
-      return Err(BufferError::SectionOutOfBounds(end, final_section));
+
+    let InsertionIndex(mut last_token_index) = self
+      .byte_extent()
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      .map(|InsertionIndex(i)| InsertionIndex(i + 1))
+      .unwrap_or_else(|| InsertionIndex(0));
+    /* Insert lines from `other`, bumping up the token index each time. */
+    for (_, checksum) in other_lines_by_bytes.into_iter() {
+      self
+        .lines_by_bytes
+        .insert(SectionIndex(last_token_index), checksum);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      last_token_index += checksum.length + 1;
     }
-    /* Have to add + 1 to convert into noninclusive range, sigh. */
-    let mid = &lines[start.0..end.0 + 1];
-    let rhs = &lines[end.0 + 1..];
-    Ok((lhs, mid, rhs))
+    /* Re-insert lines from `suffix`, bumping up the token index each time. */
+    for (_, checksum) in suffix.into_iter() {
+      self
+        .lines_by_bytes
+        .insert(SectionIndex(last_token_index), checksum);
+      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
+      last_token_index += checksum.length + 1;
+    }
+
+    Ok(())
   }
 
   fn get_section(&self, si: SectionIndex) -> Result<&TextChecksum, BufferError> {
     self
-      .lines
-      .get(si.0)
+      .lines_by_bytes
+      .get(&si)
       .ok_or_else(|| BufferError::SectionOutOfBounds(si, self.final_section()))
   }
 
   fn final_section(&self) -> SectionIndex {
-    assert!(!self.lines.is_empty());
-    SectionIndex(self.lines.len() - 1)
+    *self
+      .lines_by_bytes
+      .keys()
+      .last()
+      .expect("should have at least one section")
   }
 
   /// Retrieve the byte index corresponding to the code point index.
@@ -507,91 +550,87 @@ impl Buffer {
   /// # }
   ///```
   pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> {
-    let transforms::Point { code_point_index } = point;
-    let code_point_index = code_point_index as usize;
-    /* TODO: make this faster (B-tree?)! */
-    let mut cur_code_point: usize = 0;
-    let mut cur_location: usize = 0;
-    let mut found_index: Option<InsertionIndex> = None;
-    for checksum in self.lines.iter() {
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      if cur_code_point + checksum.code_points + 1 > code_point_index {
-        let within_section = code_point_index - cur_code_point;
-        let bytes_within_section = if within_section == checksum.code_points {
-          checksum.length
-        } else {
-          self
-          .interns
-          .get_no_eq_check(*checksum)?
-          .contents
-          .char_indices()
-          .skip(within_section)
-          .next()
-          /* Get just the byte index, not the char. */
-          .map(|(i, _)| i)
-          .expect("verified with if clause that we have enough code points in this section")
-        };
-        found_index = Some(InsertionIndex(cur_location + bytes_within_section));
-        break;
-      } else {
-        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-        cur_code_point += checksum.code_points + 1;
-        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-        cur_location += checksum.length + 1;
-      }
-    }
-    match found_index {
-      Some(ii) => Ok(ii),
-      None => {
-        if code_point_index > cur_code_point {
-          Err(BufferError::CodePointOutOfBounds(
-            point,
-            transforms::Point {
-              code_point_index: cur_code_point as u64,
-            },
-          ))
-        } else {
-          Ok(InsertionIndex(cur_location))
-        }
-      },
-    }
+    todo!()
+    /* let transforms::Point { code_point_index } = point; */
+    /* let code_point_index = code_point_index as usize; */
+    /* /\* TODO: make this faster (B-tree?)! *\/ */
+    /* let mut cur_code_point: usize = 0; */
+    /* let mut cur_location: usize = 0; */
+    /* let mut found_index: Option<InsertionIndex> = None; */
+    /* for checksum in self.lines.iter() { */
+    /*   /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
+    /*   if cur_code_point + checksum.code_points + 1 > code_point_index { */
+    /*     let within_section = code_point_index - cur_code_point; */
+    /*     let bytes_within_section = if within_section == checksum.code_points { */
+    /*       checksum.length */
+    /*     } else { */
+    /*       self */
+    /*       .interns */
+    /*       .get_no_eq_check(*checksum)? */
+    /*       .contents */
+    /*       .char_indices() */
+    /*       .skip(within_section) */
+    /*       .next() */
+    /*       /\* Get just the byte index, not the char. *\/ */
+    /*       .map(|(i, _)| i) */
+    /*       .expect("verified with if clause that we have enough code points in this section") */
+    /*     }; */
+    /*     found_index = Some(InsertionIndex(cur_location + bytes_within_section)); */
+    /*     break; */
+    /*   } else { */
+    /*     /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
+    /*     cur_code_point += checksum.code_points + 1; */
+    /*     /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
+    /*     cur_location += checksum.length + 1; */
+    /*   } */
+    /* } */
+    /* match found_index { */
+    /*   Some(ii) => Ok(ii), */
+    /*   None => { */
+    /*     if code_point_index > cur_code_point { */
+    /*       Err(BufferError::CodePointOutOfBounds( */
+    /*         point, */
+    /*         transforms::Point { */
+    /*           code_point_index: cur_code_point as u64, */
+    /*         }, */
+    /*       )) */
+    /*     } else { */
+    /*       Ok(InsertionIndex(cur_location)) */
+    /*     } */
+    /*   }, */
+    /* } */
+  }
+
+  fn byte_extent(&self) -> Option<InsertionIndex> {
+    self
+      .lines_by_bytes
+      .iter()
+      .last()
+      .map(|(section, checksum)| section.end_index(checksum.length))
   }
 
   fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
     /* TODO: make this faster (B-tree?)! */
-    let mut cur_location: usize = 0;
-    let mut found_section: Option<FoundSection> = None;
-    for (section_index, checksum) in self.lines.iter().enumerate() {
-      /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-      if cur_location + checksum.length + 1 > at.0 {
-        let within_section = at.0 - cur_location;
-        found_section = Some(FoundSection {
-          section: SectionIndex(section_index),
-          within: WithinSectionIndex(within_section),
-        });
-        break;
-      } else {
-        /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
-        cur_location += checksum.length + 1;
-      }
+    let final_index = self.byte_extent().expect("should have been non-empty");
+    if at > final_index {
+      return Err(BufferError::EditOutOfBounds(at, final_index));
     }
-    match found_section {
-      Some(fs) => Ok(fs),
-      None => {
-        if at.0 > cur_location {
-          Err(BufferError::EditOutOfBounds(
-            at,
-            InsertionIndex(cur_location),
-          ))
-        } else {
-          let final_section = self.final_section();
-          Ok(FoundSection {
-            section: final_section,
-            within: WithinSectionIndex(self.get_section(final_section)?.length),
-          })
-        }
-      },
-    }
+    let (section, checksum) = self
+      .lines_by_bytes
+      .range(at.section_bounds())
+      .last()
+      .unwrap_or_else(|| {
+        self
+          .lines_by_bytes
+          .iter()
+          .last()
+          .expect("should have at least one element in lines_by_bytes")
+      });
+    assert!(at <= section.end_index(checksum.length));
+    Ok(FoundSection {
+      section: *section,
+      within: section.within_index(at),
+    })
   }
 
   fn locate_deletion_range(&self, range: DeletionRange) -> Result<DeletionResult, BufferError> {
@@ -655,9 +694,12 @@ impl Buffer {
   /// # }
   ///```
   pub fn replace(&mut self, s: &str) -> Result<(), BufferError> {
-    let Self { interns, lines } = Self::tokenize(s)?;
+    let Self {
+      interns,
+      lines_by_bytes,
+    } = Self::tokenize(s)?;
     self.interns = interns;
-    self.lines = lines;
+    self.lines_by_bytes = lines_by_bytes;
     Ok(())
   }
 
@@ -686,6 +728,11 @@ impl Buffer {
   /// ae_o.delete_at(DeletionRange { beg: InsertionIndex(3), end: InsertionIndex(12) })?;
   /// let ag = Buffer::tokenize("a̐g")?;
   /// assert_eq!(ae_o, ag);
+  ///
+  /// let mut ab_c = Buffer::tokenize("ab\nc")?;
+  /// ab_c.delete_at(DeletionRange { beg: InsertionIndex(2), end: InsertionIndex(3) })?;
+  /// let abc = Buffer::tokenize("abc")?;
+  /// assert_eq!(ab_c, abc);
   /// # Ok(())
   /// # }
   ///```
@@ -946,7 +993,7 @@ mod test {
     fn test_buffer_tokenize_lines((s, indices) in string_with_indices(5000, 5.0)) {
       let input = delimited_input(&s, &indices);
       let buf = Buffer::tokenize(&input).unwrap();
-      prop_assert_eq!(buf.lines.len(), indices.len() + 1);
+      prop_assert_eq!(buf.lines_by_bytes.len(), indices.len() + 1);
     }
   }
   proptest! {
