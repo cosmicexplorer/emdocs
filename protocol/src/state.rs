@@ -498,6 +498,37 @@ impl Buffer {
   ///     ].into(),
   ///   },
   /// );
+  ///
+  /// let buffer = Buffer::tokenize("a̐é\nö̲g")?;
+  /// assert_eq!(
+  ///   buffer,
+  ///   Buffer {
+  ///     interns: InternedTexts {
+  ///       interned_text_sections: [
+  ///         (TextChecksum { hash: 14485856197364638025, length: 6, code_points: 4 },
+  ///          TextSection { contents: "a̐é".to_string(), num_occurrences: 1 }),
+  ///         (TextChecksum { hash: 18313508789661116446, length: 6, code_points: 4 },
+  ///          TextSection { contents: "ö̲g".to_string(), num_occurrences: 1 }),
+  ///       ].into_iter().collect(),
+  ///     },
+  ///     lines_by_bytes: [
+  ///       (ByteSectionIndex(0), TextChecksum { hash: 14485856197364638025, length: 6, code_points: 4 }),
+  ///       (ByteSectionIndex(7), TextChecksum { hash: 18313508789661116446, length: 6, code_points: 4 }),
+  ///     ].into(),
+  ///     lines_by_code_points: [
+  ///       (CodePointSectionIndex(0),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 14485856197364638025, length: 6, code_points: 4 },
+  ///          byte_index: ByteSectionIndex(0),
+  ///        }),
+  ///       (CodePointSectionIndex(5),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 18313508789661116446, length: 6, code_points: 4 },
+  ///          byte_index: ByteSectionIndex(7),
+  ///        }),
+  ///     ].into(),
+  ///   },
+  /// );
   /// # Ok(())
   /// # }
   ///```
