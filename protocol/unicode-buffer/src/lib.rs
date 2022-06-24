@@ -711,8 +711,8 @@ impl Buffer {
        * `section`), then we want the first code point (which will always start at 0). Therefore, we
        * add one to the number we take. */
       .take(at.0 - section.0 + 1)
-        .last()
-        .map(|(within_bytes, _)| within_bytes)
+      .last()
+      .map(|(within_bytes, _)| within_bytes)
       .expect("should have had enough code points in this text section!")
     };
     Ok(InsertionIndex(
@@ -893,9 +893,9 @@ pub mod proptest_strategies {
    * and add our own on top! */
   prop_compose! {
     pub fn non_delimited_string(str_len: usize)
+      (actual_len in 0..=str_len)
       /* TODO: assuming \n is delimiter!!! */
-      (in_between in prop::string::string_regex(&format!(r"[^\n]{{0,{}}}", str_len)).unwrap())
-      (in_between in Just(in_between))
+      (in_between in prop::string::string_regex(&format!(r"[^\n]{{0,{}}}", actual_len)).unwrap())
        -> String {
         in_between
       }
@@ -904,7 +904,7 @@ pub mod proptest_strategies {
     pub fn delimiter_indices(s: String, newline_factor: f64)
       (mut indices in prop::collection::vec(
         0..s.len(),
-        1..((s.len() as f64 / newline_factor).floor() as i32) as usize))
+        0..=(((s.len() as f64 / newline_factor).floor() as i32) as usize)))
        -> Vec<usize> {
         indices.sort_unstable();
         let mut prior_non_char_boundary: Option<usize> = None;
@@ -972,7 +972,7 @@ pub mod proptest_strategies {
   prop_compose! {
     pub fn insertion_index(str_len: usize, newline_factor: f64)
       (s in delimited_string(str_len, newline_factor))
-      (mut index in 0..s.len(), s in Just(s))
+      (mut index in 0..=s.len(), s in Just(s))
        -> (String, InsertionIndex) {
         while !s.is_char_boundary(index) {
           index -= 1;
@@ -1026,7 +1026,7 @@ mod test {
 
   proptest! {
     #[test]
-    fn test_tokenize_newlines((s, indices) in string_with_indices(5000, 5.0)) {
+    fn test_tokenize_newlines((s, indices) in string_with_indices(50000, 50.0)) {
       let input = delimited_input(&s, &indices);
       let expected: Vec<TokenIndex> = indices.into_iter().enumerate().map(|(ind, loc)| {
         TokenIndex {
@@ -1044,7 +1044,7 @@ mod test {
   }
   proptest! {
     #[test]
-    fn test_buffer_tokenize_lines((s, indices) in string_with_indices(5000, 5.0)) {
+    fn test_buffer_tokenize_lines((s, indices) in string_with_indices(50000, 50.0)) {
       let input = delimited_input(&s, &indices);
       let buf = Buffer::tokenize(&input).unwrap();
       prop_assert_eq!(buf.lines_by_bytes.len(), indices.len() + 1);
@@ -1052,7 +1052,7 @@ mod test {
   }
   proptest! {
     #[test]
-    fn test_buffer_insert((base, at) in insertion_index(5000, 5.0), s in any::<String>()) {
+    fn test_buffer_insert((base, at) in insertion_index(50000, 50.0), s in any::<String>()) {
       let mut buf = Buffer::tokenize(&base).unwrap();
       buf.insert_at(at, &s).unwrap();
       let merged_str = [&base[..at.0], &s, &base[at.0..]].concat();
@@ -1062,7 +1062,7 @@ mod test {
   }
   proptest! {
     #[test]
-    fn test_buffer_delete_none((base, at) in insertion_index(5000, 5.0)) {
+    fn test_buffer_delete_none((base, at) in insertion_index(50000, 50.0)) {
       let mut buf = Buffer::tokenize(&base).unwrap();
       let buf2 = buf.clone();
       let range = DeletionRange { beg: at, end: at };
@@ -1072,7 +1072,7 @@ mod test {
   }
   proptest! {
     #[test]
-    fn test_buffer_delete((base, range) in deletion_range(5000, 5.0)) {
+    fn test_buffer_delete((base, range) in deletion_range(50000, 50.0)) {
       let mut buf = Buffer::tokenize(&base).unwrap();
       buf.delete_at(range).unwrap();
       let spliced_str = [&base[..range.beg.0], &base[range.end.0..]].concat();
@@ -1082,7 +1082,7 @@ mod test {
   }
   proptest! {
     #[test]
-    fn test_locate_code_point((s, point, expected_index) in code_point_index(5000, 5.0)) {
+    fn test_locate_code_point((s, point, expected_index) in code_point_index(50000, 50.0)) {
       let buf = Buffer::tokenize(&s).unwrap();
       let found_index = buf.locate_code_point(point).unwrap();
       prop_assert_eq!(expected_index, found_index);
