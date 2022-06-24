@@ -1,5 +1,5 @@
 /*
- * Description: Update an internal view of a buffer's state.
+ * Description: Update an internal view of each buffer's state.
  *
  * Copyright (C) 2022 Danny McClanahan <dmcC2@hypnicjerk.ai>
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -18,7 +18,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! Update an internal view of a buffer's state.
+//! Update an internal view of each buffer's state.
 //!
 //! # TODO
 //! 1. maintain a list of all lines of text in the buffer, along with their checksums & covered
@@ -49,7 +49,7 @@ use crate::{buffers::BufferId, transforms};
 
 use unicode_buffer::{Buffer, BufferError, CodePointInsertionIndex, InsertionIndex};
 
-use async_lock::RwLock;
+use async_lock::{RwLock, RwLockUpgradableReadGuard};
 use displaydoc::Display;
 use indexmap::IndexMap;
 use thiserror::Error;
@@ -107,11 +107,12 @@ impl BufferMapping {
       .get(&id)
       .ok_or(BufferMappingError::BufNotFound(id))?
       .clone();
-    let mut buffer = buffer.write().await;
     match r#type {
       transforms::TransformType::edit(transforms::Edit { point, payload }) => {
         let point = CodePointInsertionIndex(point.code_point_index as usize);
+        let buffer = buffer.upgradable_read().await;
         let insertion_index: InsertionIndex = buffer.locate_code_point(point)?;
+        let mut buffer = RwLockUpgradableReadGuard::upgrade(buffer).await;
         match payload {
           transforms::EditPayload::insert(transforms::Insert { contents }) => {
             buffer.insert_at(insertion_index, &contents)?;
