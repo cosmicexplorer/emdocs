@@ -115,7 +115,7 @@ pub trait P2p {
 
 #[derive(Clone)]
 pub struct P2pService {
-  mailboxes: Arc<RwLock<IndexMap<P2pParticipantId, Vec<P2pMessage>>>>,
+  mailboxes: Arc<RwLock<IndexMap<P2pParticipantId, Arc<RwLock<Vec<P2pMessage>>>>>>,
   condvar_sender: broadcast::Sender<()>,
 }
 
@@ -132,7 +132,7 @@ impl P2pService {
 /// Used to create a [`broadcast::Receiver`] before dropping the mailboxes write lock in
 /// [`P2pService::receive`].
 enum ReceiveResult {
-  Messages(Vec<proto::P2pMessage>),
+  Messages(Vec<P2pMessage>),
   Waiter(broadcast::Receiver<()>),
 }
 
@@ -147,8 +147,10 @@ impl proto::p2p_server::P2p for P2pService {
       .try_into()
       .expect("failed to convert p2p proto request");
     dbg!(&request);
-    /* Get the write lock and update the mailboxes. */
-    for mailbox in self.mailboxes.write().await.values_mut() {
+    /* Get handles for each of the active mailboxes. */
+    let mailboxes: Vec<_> = self.mailboxes.read().await.values().cloned().collect();
+    for mailbox in mailboxes.into_iter() {
+      let mut mailbox = mailbox.write().await;
       /* We are fine propagating it to ourselves, as this is filtered out in the client. */
       mailbox.push(request.clone());
     }
@@ -178,18 +180,17 @@ impl proto::p2p_server::P2p for P2pService {
     /* Try getting any messages, and waiting for a channel flag if none are yet found. */
     loop {
       let receive_result = {
-        /* Get a write lock on the mailbox. */
-        let mut mailboxes = self.mailboxes.write().await;
-        let messages: Vec<proto::P2pMessage> = mailboxes
-          /* Under the lock, access the entry... */
+        /* Get a write lock on the entry for the mailbox... */
+        let mailbox = self.mailboxes.write().await
+          /* ...under the lock, access the entry... */
           .entry(request.user_id)
-          /* ...or create a new entry... */
-          .or_insert_with(Vec::new)
-          /* ...then drain the results to empty the vector... */
-          .drain(..)
-          /* ...then produce a vector of protobufs. */
-          .map(|msg| msg.into())
-          .collect();
+          /* ...or create a new mailbox. */
+          .or_insert_with(|| Arc::new(RwLock::new(Vec::new())))
+          .clone();
+        /* Then get a write lock on the contents of the mailbox. */
+        let mut mailbox = mailbox.write().await;
+        /* With the mailbox lock, drain the results to empty the vector. */
+        let messages: Vec<P2pMessage> = mailbox.drain(..).collect();
         if messages.is_empty() {
           /* Drop the write lock after generating a new subscriber. Subscribers will receive
            * whatever messages they get after *subscription*, so we're ok dropping the write lock
@@ -203,6 +204,9 @@ impl proto::p2p_server::P2p for P2pService {
       /* ^Drop the write lock. */
       match receive_result {
         ReceiveResult::Messages(messages) => {
+          /* Produce a vector of protobufs. */
+          let messages: Vec<proto::P2pMessage> =
+            messages.into_iter().map(|msg| msg.into()).collect();
           /* We've finally found some messages, let's return. */
           let response = proto::P2pReceiveResult { messages };
           return Ok(tonic::Response::new(response));
