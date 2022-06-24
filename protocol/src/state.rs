@@ -326,11 +326,18 @@ pub enum BufferError {
   CodePointOutOfBounds(CodePointInsertionIndex, CodePointInsertionIndex),
 }
 
+/// <checksum {checksum} with byte index {byte_index}>
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ChecksumWithByteSection {
+  pub checksum: TextChecksum,
+  pub byte_index: ByteSectionIndex,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Buffer {
   pub interns: InternedTexts,
   pub lines_by_bytes: BTreeMap<ByteSectionIndex, TextChecksum>,
-  pub lines_by_code_points: BTreeMap<CodePointSectionIndex, TextChecksum>,
+  pub lines_by_code_points: BTreeMap<CodePointSectionIndex, ChecksumWithByteSection>,
 }
 
 impl Buffer {
@@ -395,11 +402,31 @@ impl Buffer {
   ///       (ByteSectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
   ///     ].into(),
   ///     lines_by_code_points: [
-  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 }),
-  ///       (CodePointSectionIndex(5), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
-  ///       (CodePointSectionIndex(6), TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 }),
-  ///       (CodePointSectionIndex(9), TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 }),
+  ///       (CodePointSectionIndex(0),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///          byte_index: ByteSectionIndex(0),
+  ///        }),
+  ///       (CodePointSectionIndex(3),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 15797338846215409778, length: 1, code_points: 1 },
+  ///          byte_index: ByteSectionIndex(3),
+  ///        }),
+  ///       (CodePointSectionIndex(5),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///          byte_index: ByteSectionIndex(5),
+  ///        }),
+  ///       (CodePointSectionIndex(6),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 4980332201698043396, length: 2, code_points: 2 },
+  ///          byte_index: ByteSectionIndex(6),
+  ///        }),
+  ///       (CodePointSectionIndex(9),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 4158092142439706792, length: 1, code_points: 1 },
+  ///          byte_index: ByteSectionIndex(9),
+  ///        }),
   ///     ].into(),
   ///   },
   /// );
@@ -421,8 +448,16 @@ impl Buffer {
   ///       (ByteSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
   ///     lines_by_code_points: [
-  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (CodePointSectionIndex(0),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///          byte_index: ByteSectionIndex(0),
+  ///        }),
+  ///       (CodePointSectionIndex(3),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///          byte_index: ByteSectionIndex(3),
+  ///        }),
   ///     ].into(),
   ///   },
   /// );
@@ -445,9 +480,21 @@ impl Buffer {
   ///       (ByteSectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
   ///     ].into(),
   ///     lines_by_code_points: [
-  ///       (CodePointSectionIndex(0), TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 }),
-  ///       (CodePointSectionIndex(3), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
-  ///       (CodePointSectionIndex(4), TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 }),
+  ///       (CodePointSectionIndex(0),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 6148830537548944441, length: 2, code_points: 2 },
+  ///          byte_index: ByteSectionIndex(0),
+  ///        }),
+  ///       (CodePointSectionIndex(3),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///          byte_index: ByteSectionIndex(3),
+  ///        }),
+  ///       (CodePointSectionIndex(4),
+  ///        ChecksumWithByteSection {
+  ///          checksum: TextChecksum { hash: 15130871412783076140, length: 0, code_points: 0 },
+  ///          byte_index: ByteSectionIndex(4),
+  ///        }),
   ///     ].into(),
   ///   },
   /// );
@@ -489,14 +536,19 @@ impl Buffer {
       .map(|CodePointInsertionIndex(i)| CodePointInsertionIndex(i + 1))
       .unwrap_or_else(|| CodePointInsertionIndex(0));
     for checksum in checksums.into_iter() {
-      self
-        .lines_by_bytes
-        .insert(ByteSectionIndex(last_token_index), checksum);
+      /* Add section to byte sections. */
+      let byte_index = ByteSectionIndex(last_token_index);
+      self.lines_by_bytes.insert(byte_index, checksum);
+      /* Add section to code point sections. */
+      self.lines_by_code_points.insert(
+        CodePointSectionIndex(last_code_point_index),
+        ChecksumWithByteSection {
+          checksum,
+          byte_index,
+        },
+      );
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       last_token_index += checksum.length + 1;
-      self
-        .lines_by_code_points
-        .insert(CodePointSectionIndex(last_code_point_index), checksum);
       /* 1 is the length of '\n', so we advance by that much so as not to hit it again. */
       last_code_point_index += checksum.code_points + 1;
     }
@@ -621,69 +673,39 @@ impl Buffer {
   /// # }
   ///```
   pub fn locate_code_point(&self, point: transforms::Point) -> Result<InsertionIndex, BufferError> {
-    /* let at = CodePointInsertionIndex::from_point(point); */
-    /* let final_index = self */
-    /*   .code_point_extent() */
-    /*   .expect("should have been non-empty"); */
-    /* if at > final_index { */
-    /*   return Err(BufferError::CodePointOutOfBounds(at, final_index)); */
-    /* } */
-    /* let num_sections = self.lines_by_code_points.range(at.section_bounds()).count(); */
-    /* self.lines_by_bytes.iter().take(num_sections) */
-    /*   .last() */
-    /*   .expect() */
-
-    /* assert!(at <= section.end_index(checksum.length)); */
-    /* Ok(InsertionIndex()) */
-    todo!()
-
-    /* let code_point_index = code_point_index as usize; */
-    /* /\* TODO: make this faster (B-tree?)! *\/ */
-    /* let mut cur_code_point: usize = 0; */
-    /* let mut cur_location: usize = 0; */
-    /* let mut found_index: Option<InsertionIndex> = None; */
-    /* for checksum in self.lines.iter() { */
-    /*   /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
-    /*   if cur_code_point + checksum.code_points + 1 > code_point_index { */
-    /*     let within_section = code_point_index - cur_code_point; */
-    /*     let bytes_within_section = if within_section == checksum.code_points { */
-    /*       checksum.length */
-    /*     } else { */
-    /*       self */
-    /*       .interns */
-    /*       .get_no_eq_check(*checksum)? */
-    /*       .contents */
-    /*       .char_indices() */
-    /*       .skip(within_section) */
-    /*       .next() */
-    /*       /\* Get just the byte index, not the char. *\/ */
-    /*       .map(|(i, _)| i) */
-    /*       .expect("verified with if clause that we have enough code points in this section") */
-    /*     }; */
-    /*     found_index = Some(InsertionIndex(cur_location + bytes_within_section)); */
-    /*     break; */
-    /*   } else { */
-    /*     /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
-    /*     cur_code_point += checksum.code_points + 1; */
-    /*     /\* 1 is the length of '\n', so we advance by that much so as not to hit it again. *\/ */
-    /*     cur_location += checksum.length + 1; */
-    /*   } */
-    /* } */
-    /* match found_index { */
-    /*   Some(ii) => Ok(ii), */
-    /*   None => { */
-    /*     if code_point_index > cur_code_point { */
-    /*       Err(BufferError::CodePointOutOfBounds( */
-    /*         point, */
-    /*         transforms::Point { */
-    /*           code_point_index: cur_code_point as u64, */
-    /*         }, */
-    /*       )) */
-    /*     } else { */
-    /*       Ok(InsertionIndex(cur_location)) */
-    /*     } */
-    /*   }, */
-    /* } */
+    let at = CodePointInsertionIndex::from_point(point);
+    let final_index = self
+      .code_point_extent()
+      .expect("should have been non-empty");
+    if at > final_index {
+      return Err(BufferError::CodePointOutOfBounds(at, final_index));
+    }
+    let (section, checksum_with_index) = self
+      .lines_by_code_points
+      .range(at.section_bounds())
+      .last()
+      .expect("first element should have been at 0, so this should always produce something");
+    assert!(at <= section.end_index(checksum_with_index.checksum.code_points));
+    let within_bytes = if at == section.end_index(checksum_with_index.checksum.code_points) {
+      checksum_with_index.checksum.length
+    } else {
+      self
+      .interns
+      .get_no_eq_check(checksum_with_index.checksum)?
+      .contents
+      .char_indices()
+      /* We want to iterate through as many code points as remain after subtracting the header for
+       * this section. If the code point lies on the exact start of the section (so `at` equals
+       * `section`), then we want the first code point (which will always start at 0). Therefore, we
+       * add one to the number we take. */
+      .take(at.0 - section.0 + 1)
+        .last()
+        .map(|(within_bytes, _)| within_bytes)
+      .expect("should have had enough code points in this text section!")
+    };
+    Ok(InsertionIndex(
+      checksum_with_index.byte_index.0 + within_bytes,
+    ))
   }
 
   fn byte_extent(&self) -> Option<InsertionIndex> {
@@ -699,7 +721,9 @@ impl Buffer {
       .lines_by_code_points
       .iter()
       .last()
-      .map(|(section, checksum)| section.end_index(checksum.code_points))
+      .map(|(section, checksum_with_index)| {
+        section.end_index(checksum_with_index.checksum.code_points)
+      })
   }
 
   fn locate_within_section(&self, at: InsertionIndex) -> Result<FoundSection, BufferError> {
