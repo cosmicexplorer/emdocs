@@ -1,0 +1,18 @@
+[package]
+name                    = "unicode-buffer"
+description             = "A mutable string supporting editing operations over unicode code points."
+authors                 = ["Danny McClanahan <dmcC2@hypnicjerk.ai>"]
+license                 = "AGPL-3.0-or-later"
+repository              = "https://github.com/cosmicexplorer/emdocs"
+version                 = "0.0.0"
+edition                 = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+displaydoc              = { git = "https://github.com/yaahc/displaydoc", rev = "7159bb5c9d41ca3c7ccf04ae86ae3acb0ea12a27" }
+indexmap                = "1.9.0"
+thiserror               = "1.0.30"
+
+[dev-dependencies]
+proptest                = "1"

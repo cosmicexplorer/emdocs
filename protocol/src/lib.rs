@@ -25,6 +25,8 @@
 /* Make all doctests fail if they produce any warnings. */
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
+#![allow(clippy::module_inception)]
+#![allow(clippy::new_without_default)]
 
 pub mod buffers;
 pub mod error;

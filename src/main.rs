@@ -24,6 +24,7 @@
 /* Make all doctests fail if they produce any warnings. */
 #![doc(test(attr(deny(warnings))))]
 #![deny(clippy::all)]
+#![allow(clippy::single_component_path_imports)]
 
 use emdocs_protocol::{
   messages::{self, OperationService},
@@ -94,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
           let mut client_msg: Vec<u8> = serde_json::to_vec(&client_msg)?;
           /* Ensure we have clear lines between entries in stdout. */
           client_msg.push(b'\n');
-          io::stdout().write(&client_msg)?;
+          io::stdout().write_all(&client_msg)?;
           Ok(messages::OperationResult::ok)
         }
       }

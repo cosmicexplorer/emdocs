@@ -120,7 +120,6 @@ mod serde_impl {
       fn try_from(proto_message: proto::BufferId) -> Result<Self, BufferError> {
         let proto::BufferId { uuid } = proto_message.clone();
         let uuid: [u8; 16] = uuid
-          .clone()
           .ok_or_else(|| {
             BufferError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
               "uuid",

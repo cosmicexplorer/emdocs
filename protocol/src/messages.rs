@@ -149,9 +149,7 @@ pub mod proptest_strategies {
     }
   }
   pub fn new_ide_msg() -> impl Strategy<Value=IDEMessage> {
-    prop_oneof![
-      new_operation().prop_map(IDEMessage::op),
-    ]
+    prop_oneof![new_operation().prop_map(IDEMessage::op),]
   }
 }
 

@@ -25,8 +25,9 @@ resolver = "2"
 members = [
   ".",
   "protocol",
+  "protocol/unicode-buffer",
 ]
 default-members = [
   ".",
-  "protocol",
+  "protocol/unicode-buffer",
 ]

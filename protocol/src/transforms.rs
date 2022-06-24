@@ -82,6 +82,7 @@ pub struct Point {
   pub code_point_index: u64,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Point {
   fn default() -> Self {
     Self {
@@ -241,7 +242,7 @@ mod serde_impl {
       type Error = TransformError;
 
       fn try_from(proto_message: proto::Delete) -> Result<Self, TransformError> {
-        let proto::Delete { distance } = proto_message.clone();
+        let proto::Delete { distance } = proto_message;
         let distance = distance.ok_or_else(|| {
           TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "distance",
@@ -273,7 +274,7 @@ mod serde_impl {
       type Error = TransformError;
 
       fn try_from(proto_message: proto::Point) -> Result<Self, TransformError> {
-        let proto::Point { code_point_index } = proto_message.clone();
+        let proto::Point { code_point_index } = proto_message;
         let code_point_index = code_point_index.ok_or_else(|| {
           TransformError::Proto(serde_mux::ProtobufCodingFailure::OptionalFieldAbsent(
             "code_point_index",
@@ -469,7 +470,7 @@ mod serde_impl {
       fn from(value: SyncContents) -> Self {
         let SyncContents { contents } = value;
         Self {
-          contents: Some(contents.into()),
+          contents: Some(contents),
         }
       }
     }

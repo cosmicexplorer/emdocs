@@ -641,7 +641,7 @@ mod serde_impl {
       type Error = P2pError;
 
       fn try_from(proto_message: proto::P2pReceiveResult) -> Result<Self, P2pError> {
-        let proto::P2pReceiveResult { messages } = proto_message.clone();
+        let proto::P2pReceiveResult { messages } = proto_message;
         let messages: Vec<P2pMessage> = messages
           .into_iter()
           .map(|x| x.try_into())
