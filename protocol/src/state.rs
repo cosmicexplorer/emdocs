@@ -585,7 +585,7 @@ impl Buffer {
     }
   }
 
-  /// ???
+  /// Replace the line range `at` with the lines from `other`.
   ///
   ///```
   /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
@@ -783,7 +783,7 @@ impl Buffer {
     Ok(DeletionResult { beg, end })
   }
 
-  /// ???
+  /// Insert the string `s` at the byte index `at`.
   ///
   ///```
   /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
@@ -822,7 +822,7 @@ impl Buffer {
     Ok(())
   }
 
-  /// ???
+  /// Replace the contents of the buffer with the tokenized version of the string `s`.
   ///
   ///```
   /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
@@ -847,7 +847,7 @@ impl Buffer {
     Ok(())
   }
 
-  /// ???
+  /// Delete byte indices according to `range` from this buffer.
   ///
   ///```
   /// # fn main() -> Result<(), emdocs_protocol::state::BufferError> {
