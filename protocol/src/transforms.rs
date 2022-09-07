@@ -130,6 +130,14 @@ pub enum SyncRegionType {
   contents(SyncContents),
 }
 
+/* FIXME: take a look at this discussion on differential synchronization, an alternative method
+ * which may be less complex (and is reminiscent of the signal protocol's handling of out-of-order
+ * messages!!)
+ *
+ * - tweet: https://twitter.com/toddewilliams/status/1549433609005711360?s=20&t=-eLMr1iPQvR24oFgRpwJwA
+ * - paper: https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/35605.pdf
+ * - archive: https://web.archive.org/web/20200930235331/https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/35605.pdf
+ */
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SyncRegion {
   pub region: Region,
